@@ -105,7 +105,10 @@ shiny::tagList(
                          plotOutput(outputId = "q_plot"),
                          plotOutput(outputId = "s_plot")
                     )
-            )
+            ),
+            tabPanel(title = "Documentation", 
+                     shiny::includeHTML("readme.html")
+                     )
         )  
     ) #shiny::fluidPage
 )

@@ -1,5 +1,5 @@
 
-# 1D Analytic steady-state, one-dimensional, leaky multi-aquifer groundwater model
+# Analytic steady-state, one-dimensional, leaky multi-aquifer groundwater model
 
 C.H. van Immerzeel
 

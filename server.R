@@ -4,6 +4,7 @@ library(pracma)
 library(ggplot2)
 library(reshape2)
 library(dplyr)
+library(magrittr)
 
 # Constants
 min_nr_sections <- 2; max_nr_sections <- 25
@@ -58,86 +59,109 @@ limit_matrix <- function(x, min_value, max_value) {
 #' @param X  Vector of points where values will be computed ([L] =npoints)
 #' @return   Matrix with calculated heads ([L] rows (1-nLay)); lateral fluxes ([L2/T] rows (nLay+1 - 2xnLay)); seepage ([L/T] rows (2xnLay+1 - 3xnLay))
 solve_mlay1d <- function(kD, c_, Q, h, x, X) {
-  nSec <- length(h)
-  nNod <- nSec - 1
-  nLay <- nrow(c_)
-  
-  Q %<>% cbind(0, ., 0)
-  x %<>% c(-Inf, ., Inf)
-  Nx <- x %>% length()
-  H <- h %>% rep(nLay) %>% matrix(nrow = nLay, byrow = TRUE)
-  
-  #  are used to compute relative coordinates within sections
-  xMidSec <- .5 * (x[-length(x)] + x[-1])
-  xMidSec[1] <- x[2]
-  xMidSec[length(xMidSec)] <- x[length(x) - 1]
-  
-  # System matrices for all sections.
-  A <- array(dim = c(nLay, nLay, nSec))
-  for (iSec in 1:nSec) {
-    a <- 1 / (kD[, iSec] * c_[, iSec])
-    b <- 1 / (kD[, iSec] * c(c_[2:nLay, iSec], Inf))
-    A[, , iSec] <-
-      diag(a + b) - pracma::Diag(c(a[2:nLay]), -1) - pracma::Diag(c(b[1:(nLay - 1)]), 1)
-  }
-  
-  C <- matrix(0, nrow = nLay * (2 * (Nx - 2)),
-              ncol = nLay * (2 * (Nx - 2) + 2))
-  R <-  matrix(0, nrow = nLay * (2 * (Nx - 2)), ncol = 1)
-  
-  for (i in 1:nNod) {
-    j <- i + 1
-    ii <- 2 * nLay * (i - 1) + 1
-    jj <- ii + nLay - 1
-    C[ii:jj, ii:jj] <-
-      +expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(A[, , i]))
-    C[ii:jj, (ii + nLay):(jj + nLay)] <-
-      +expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(A[, , i]))
-    C[ii:jj, (ii + 2 * nLay):(jj + 2 * nLay)] <-
-      -expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(A[, , j]))
-    
-    C[ii:jj, (ii + 3 * nLay):(jj + 3 * nLay)] <-
-      -expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(A[, , j]))
-    R[ii:jj] <- -H[, i] + H[, j]
-    C[(ii + nLay):(jj + nLay), (ii:jj)] <-
-      -diag(kD[, i]) %*% expm::sqrtm(A[, , i]) %*% expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(A[, , i]))
-    C[(ii + nLay):(jj + nLay), (ii + nLay):(jj + nLay)] <-
-      +diag(kD[, i]) %*% expm::sqrtm(A[, , i]) %*% expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(A[, , i]))
-    C[(ii + nLay):(jj + nLay), (ii + 2 * nLay):(jj + 2 * nLay)] <-
-      +diag(kD[, j]) %*% expm::sqrtm(A[, , j]) %*% expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(A[, , j]))
-    C[(ii + nLay):(jj + nLay), (ii + 3 * nLay):(jj + 3 * nLay)] <-
-      -diag(kD[, j]) %*% expm::sqrtm(A[, , j]) %*% expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(A[, , j]))
-    R[(ii + nLay):(jj + nLay)] <- Q[, j]
-  }
-  
-  # Mimic mldivide
-  COEF <- solve(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
-    c(rep(0, nLay), ., rep(0, nLay))
-  
-  phi <- matrix(0, nrow = nLay, ncol = length(X))
-  q <- phi
-  s <- q
-  for (i in 1:length(X)) {
-    iSec <- which(X[i] > x[1:(length(x) - 1)] & X[i] <= x[2:length(x)])
-    k <- 2 * nLay * (iSec - 1) + 1
-    l <- k + nLay - 1
-    sqm <- expm::sqrtm(A[, , iSec])
-    d <- X[i] - xMidSec[iSec]
-    C1 <-
-      expm::expm(-d * sqm) %*% COEF[k:l]
-    C2 <-
-      expm::expm(d * sqm) %*% COEF[(k + nLay):(l + nLay)]
-    C3 <- sqm %*% C1
-    C4 <- sqm %*% C2
-    phi[, i] <- C1 + C2 + H[, iSec]
-    q[, i] <- diag(kD[, iSec]) %*% (C3 - C4)
-    sNet <- diag(kD[, iSec]) %*% sqm %*% (C3 + C4)
-    s[nLay, i] <- sNet[nLay]
-    for (iLay in (nLay - 1):1) {
-      s[iLay, i] <- sNet[iLay] + s[(iLay + 1), i]
-    }
-  }
-  return(rbind(phi, q, s))
+      nSec <- length(h)
+      nNod <- nSec - 1
+      nLay <- nrow(c_)
+      
+      Q %<>% cbind(0, ., 0)
+      x %<>% c(-Inf, ., Inf)
+      Nx <- x %>% length()
+      H <- h %>% rep(nLay) %>% matrix(nrow = nLay, byrow = TRUE)
+      
+      #  are used to compute relative coordinates within sections
+      xMidSec <- .5 * (x[-length(x)] + x[-1])
+      xMidSec[1] <- x[2]
+      xMidSec[length(xMidSec)] <- x[length(x) - 1]
+      
+      # System matrices for all sections.
+      A <- array(dim = c(nLay, nLay, nSec))
+      for (iSec in 1:nSec) {
+            a <- 1 / (kD[, iSec] * c_[, iSec])
+            if (nLay > 1) {
+                  b <- 1 / (kD[, iSec] * c(c_[2:nLay, iSec], Inf))
+                  A[, , iSec] <-
+                        diag(a + b) - pracma::Diag(c(a[2:nLay]), -1) - pracma::Diag(c(b[1:(nLay - 1)]), 1)
+            } else {
+                  b <- 0 %>% as.matrix()
+                  A[, , iSec] <- diag(a + b)
+            }
+      }
+      
+      C <- matrix(0, nrow = nLay * (2 * (Nx - 2)),
+                  ncol = nLay * (2 * (Nx - 2) + 2))
+      R <-  matrix(0, nrow = nLay * (2 * (Nx - 2)), ncol = 1)
+      
+      for (i in 1:nNod) {
+            j <- i + 1
+            ii <- 2 * nLay * (i - 1) + 1
+            jj <- ii + nLay - 1
+            C[ii:jj, ii:jj] <-
+                  +expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+            C[ii:jj, (ii + nLay):(jj + nLay)] <-
+                  +expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+            C[ii:jj, (ii + 2 * nLay):(jj + 2 * nLay)] <-
+                  -expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+            
+            C[ii:jj, (ii + 3 * nLay):(jj + 3 * nLay)] <-
+                  -expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+            R[ii:jj] <- -H[, i] + H[, j]
+            
+            di <- kD[, i]
+            dj <- kD[, j]
+            if (nLay == 1) {
+                  di %<>% as.matrix()
+                  dj %<>% as.matrix()
+            }
+            di %<>% diag()
+            dj %<>% diag()
+            
+            C[(ii + nLay):(jj + nLay), (ii:jj)] <-
+                  -di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+            C[(ii + nLay):(jj + nLay), (ii + nLay):(jj + nLay)] <-
+                  +di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+            
+            C[(ii + nLay):(jj + nLay), (ii + 2 * nLay):(jj + 2 * nLay)] <-
+                  +dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+            C[(ii + nLay):(jj + nLay), (ii + 3 * nLay):(jj + 3 * nLay)] <-
+                  -dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+            R[(ii + nLay):(jj + nLay)] <- Q[, j]
+      }
+      
+      # Mimic mldivide
+      COEF <- solve(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
+            c(rep(0, nLay), ., rep(0, nLay))
+      
+      phi <- matrix(0, nrow = nLay, ncol = length(X))
+      q <- phi
+      s <- q
+      for (i in 1:length(X)) {
+            iSec <- which(X[i] > x[1:(length(x) - 1)] & X[i] <= x[2:length(x)])
+            k <- 2 * nLay * (iSec - 1) + 1
+            l <- k + nLay - 1
+            sqm <- expm::sqrtm(as.matrix(A[, , iSec]))
+            d <- X[i] - xMidSec[iSec]
+            C1 <-
+                  expm::expm(-d * sqm) %*% COEF[k:l]
+            C2 <-
+                  expm::expm(d * sqm) %*% COEF[(k + nLay):(l + nLay)]
+            C3 <- sqm %*% C1
+            C4 <- sqm %*% C2
+            phi[, i] <- C1 + C2 + H[, iSec]
+            dia <- kD[, iSec]
+            if (nLay == 1) {
+                  dia %<>% as.matrix()
+            }
+            dia %<>% diag()
+            q[, i] <- dia %*% (C3 - C4)
+            sNet <- dia %*% sqm %*% (C3 + C4)
+            s[nLay, i] <- sNet[nLay]
+            if (nLay > 1) {
+                  for (iLay in (nLay - 1):1) {
+                        s[iLay, i] <- sNet[iLay] + s[(iLay + 1), i]
+                  }
+            }
+      }
+      return(rbind(phi, q, s))
 }
 
 #' Plot results of function solve_mlay1d
