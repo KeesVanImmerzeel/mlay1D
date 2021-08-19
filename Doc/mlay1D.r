@@ -7,7 +7,8 @@ packages.loading <-
          "reshape2",
          "dplyr",
          "magrittr",
-         "ggplot2"
+         "ggplot2",
+         "clipr"
       )
 new.packages <-
       packages.loading[!(packages.loading %in% installed.packages()[, "Package"])]
@@ -142,8 +143,9 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
 #' @param m Matrix with calculated heads; lateral fluxes; seepage
 #' @layers number(s) of layers to plot (numeric)
 #' @param ptype Type of plot to create ("phi"=default, "q", "s")
+#' @param labls optional data-frame with x-coordinates of (optional) vertical lines in plot (numeric) and labels (character)
 #' return ggplot2 object
-plot_mlay1d <- function(m, X, layers = 1, ptype = "phi") {
+plot_mlay1d <- function(m, X, layers = 1, ptype = "phi", labls=NULL) {
       sel_names <- paste0(ptype, layers)
       m %<>% t() %>% as.data.frame()
       nlay <- ncol(m) / 3
@@ -180,7 +182,16 @@ plot_mlay1d <- function(m, X, layers = 1, ptype = "phi") {
                   y = ylab,
                   title = title
             ) +
-            theme(plot.title = element_text(hjust = 0.5))
+            theme(plot.title = element_text(hjust = 0.5)) 
+      if (!is.null(labls)) {
+            myplot <- myplot + 
+                  geom_vline(xintercept = labls[(1:(nrow(labls)-1)),1], linetype="dotted", 
+                             color = "blue") 
+                  xrnge <- layer_scales(myplot)$x$range$range
+                  xv <- c(labls$xvlines,xrnge) %>% sort() 
+                  xv <- xv[1:(length(xv)-1)] + diff(xv)/2
+            myplot <- myplot+ annotate("text", x = xv, y = mean(layer_scales(myplot)$y$range$range), label = labls$txt, angle = 90)
+      }
       return(myplot)
 }
 
@@ -223,3 +234,21 @@ m %>% plot_mlay1d(X, layers = c(1:nLay))
 m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "q")
 m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "s")
 
+### Example 3. 
+### Copy range B1:BV8 from spreadsheet 'Example 3.xlsx' to clipboard.
+### Then run the following code.
+nLay <- 2
+df <- clipr::read_clip_tbl(header=FALSE, dec=".") 
+X <- df[1,] %>% as.double() %>% as.vector()
+x <- X[1:(length(X)-1)] + diff(X)/2
+nSec <- ncol(df)
+h <- df[2,] %>% as.double() %>% as.vector()
+kD <- df[3:(nLay+2),] %>% data.matrix()
+c_ <- df[(nLay+3):(2*nLay+2),] %>% data.matrix()
+Q <- df[(2*nLay+3):(3*nLay+2),1:(nSec-1)] %>% data.matrix()
+m <- solve_mlay1d(kD, c_, Q, h, x, X)
+i <- which( (h == lead(h))!=TRUE)
+labls <- data.frame(xvlines=c(x[i],NA),txt=c("Polder","Slibvang","Wad"))
+m %>% plot_mlay1d(X, layers = c(1:nLay), labls=labls)
+m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "q", labls=labls)
+m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "s", labls=labls)

@@ -169,42 +169,49 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
 #' @param m Matrix with calculated heads; lateral fluxes; seepage
 #' @layers number(s) of layers to plot (numeric)
 #' @param ptype Type of plot to create ("phi"=default, "q", "s")
+#' @param xvlines x-coordinates of (optional) vertical lines in plot (numeric vector)
 #' return ggplot2 object
-plot_mlay1d <- function(m, X, layers = 1, ptype = "phi") {
-  sel_names <- paste0(ptype, layers)
-  m %<>% t() %>% as.data.frame()
-  nlay <- ncol(m) / 3
-  names(m) <-
-    c(paste0("phi", 1:nlay),
-      paste0("q", 1:nlay),
-      paste0("s", 1:nlay))
-  sel_names <- paste0(ptype, layers)
-  m %<>% dplyr::select(all_of(sel_names))
-  names(m) <- layers %>% as.character()
-  m$X <- X
-  m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer")
-  
-  if (ptype == "phi") {
-    ylab <- "Head (m+ref)"
-    title <- "Head"
-  } else if (ptype == "q") {
-    ylab <- "Lateral flux (m2/d)"
-    title <- "Lateral flux"
-  } else {
-    ylab <- "Seepage (m/d)"
-    title <- "Seepage"
-  }
-  myplot <-
-    ggplot(data = m, aes(x = X, y = value, colour = Aquifer)) +
-    geom_line() +
-    labs(
-      colour = "Aquifer",
-      x = "X (m)",
-      y = ylab,
-      title = title
-    ) +
-    theme(plot.title = element_text(hjust = 0.5))
-  return(myplot)
+plot_mlay1d <- function(m, X, layers = 1, ptype = "phi", xvlines=NULL) {
+      sel_names <- paste0(ptype, layers)
+      m %<>% t() %>% as.data.frame()
+      nlay <- ncol(m) / 3
+      names(m) <-
+            c(paste0("phi", 1:nlay),
+              paste0("q", 1:nlay),
+              paste0("s", 1:nlay))
+      sel_names <- paste0(ptype, layers)
+      m %<>% dplyr::select(all_of(sel_names))
+      names(m) <- layers %>% as.character()
+      m$X <- X
+      m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer")
+      
+      if (ptype == "phi") {
+            ylab <- "Head (m+ref)"
+            title <- "Head"
+      } else if (ptype == "q") {
+            ylab <- "Lateral flux (m2/d)"
+            title <- "Lateral flux"
+      } else {
+            ylab <- "Seepage (m/d)"
+            title <- "Seepage"
+      }
+      myplot <-
+            ggplot(data = m, aes(
+                  x = X,
+                  y = value,
+                  colour = Aquifer
+            )) +
+            geom_line() +
+            labs(
+                  colour = "Aquifer",
+                  x = "X (m)",
+                  y = ylab,
+                  title = title
+            ) +
+            theme(plot.title = element_text(hjust = 0.5)) +
+            geom_vline(xintercept = xvlines, linetype="dotted", 
+                       color = "blue")
+      return(myplot)
 }
 
 function(input, output, session) {
@@ -318,19 +325,22 @@ function(input, output, session) {
   output$phi_plot <- renderPlot({
     m <- m_()
     nlay <- nrow(m) / 3
-    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "phi")
+    x <- input$x %>% as.vector()
+    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "phi", xvlines=x)
   })
   
   output$q_plot <- renderPlot({
     m <- m_()
     nlay <- nrow(m) / 3
-    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "q")
+    x <- input$x %>% as.vector()
+    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "q", xvlines=x)
   })
   
   output$s_plot <- renderPlot({
     m <- m_()
     nlay <- nrow(m) / 3
-    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "s")
+    x <- input$x %>% as.vector()
+    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "s", xvlines=x)
   })
   
 }
