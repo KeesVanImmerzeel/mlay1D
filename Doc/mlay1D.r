@@ -8,7 +8,8 @@ packages.loading <-
          "dplyr",
          "magrittr",
          "ggplot2",
-         "clipr"
+         "clipr",
+         "udpipe"
       )
 new.packages <-
       packages.loading[!(packages.loading %in% installed.packages()[, "Package"])]
@@ -102,6 +103,9 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
       }
       
       # Mimic mldivide
+      #      COEF <- limSolve::Solve.banded(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
+      #                   c(rep(0, nLay), ., rep(0, nLay))
+      
       COEF <- solve(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
             c(rep(0, nLay), ., rep(0, nLay))
       
@@ -145,56 +149,71 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
 #' @param ptype Type of plot to create ("phi"=default, "q", "s")
 #' @param labls optional data-frame with x-coordinates of (optional) vertical lines in plot (numeric) and labels (character)
 #' return ggplot2 object
-plot_mlay1d <- function(m, X, layers = 1, ptype = "phi", labls=NULL) {
-      sel_names <- paste0(ptype, layers)
-      m %<>% t() %>% as.data.frame()
-      nlay <- ncol(m) / 3
-      names(m) <-
-            c(paste0("phi", 1:nlay),
-              paste0("q", 1:nlay),
-              paste0("s", 1:nlay))
-      sel_names <- paste0(ptype, layers)
-      m %<>% dplyr::select(all_of(sel_names))
-      names(m) <- layers %>% as.character()
-      m$X <- X
-      m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer")
-      
-      if (ptype == "phi") {
-            ylab <- "Head (m+ref)"
-            title <- "Head"
-      } else if (ptype == "q") {
-            ylab <- "Lateral flux (m2/d)"
-            title <- "Lateral flux"
-      } else {
-            ylab <- "Seepage (m/d)"
-            title <- "Seepage"
-      }
-      myplot <-
-            ggplot(data = m, aes(
-                  x = X,
-                  y = value,
-                  colour = Aquifer
-            )) +
-            geom_line() +
-            labs(
-                  colour = "Aquifer",
-                  x = "X (m)",
-                  y = ylab,
-                  title = title
-            ) +
-            theme(plot.title = element_text(hjust = 0.5)) 
-      if (!is.null(labls)) {
-            myplot <- myplot + 
-                  geom_vline(xintercept = labls[(1:(nrow(labls)-1)),1], linetype="dotted", 
-                             color = "blue") 
+plot_mlay1d <-
+      function(m,
+               X,
+               layers = 1,
+               ptype = "phi",
+               labls = NULL) {
+            sel_names <- paste0(ptype, layers)
+            m %<>% t() %>% as.data.frame()
+            nlay <- ncol(m) / 3
+            names(m) <-
+                  c(paste0("phi", 1:nlay),
+                    paste0("q", 1:nlay),
+                    paste0("s", 1:nlay))
+            sel_names <- paste0(ptype, layers)
+            m %<>% dplyr::select(all_of(sel_names))
+            names(m) <- layers %>% as.character()
+            m$X <- X
+            m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer")
+            
+            if (ptype == "phi") {
+                  ylab <- "Head (m+ref)"
+                  title <- "Head"
+            } else if (ptype == "q") {
+                  ylab <- "Lateral flux (m2/d)"
+                  title <- "Lateral flux"
+            } else {
+                  ylab <- "Seepage (m/d)"
+                  title <- "Seepage"
+            }
+            myplot <-
+                  ggplot(data = m, aes(
+                        x = X,
+                        y = value,
+                        colour = Aquifer
+                  )) +
+                  geom_line() +
+                  labs(
+                        colour = "Aquifer",
+                        x = "X (m)",
+                        y = ylab,
+                        title = title
+                  ) +
+                  theme(plot.title = element_text(hjust = 0.5))
+            if (!is.null(labls)) {
+                  xintercept <- labls$xvlines[!is.na(labls$xvlines)]
+                  myplot <-
+                        myplot + geom_vline(
+                              xintercept = xintercept,
+                              linetype = "dotted",
+                              color = "blue"
+                        )
                   xrnge <- layer_scales(myplot)$x$range$range
-                  xv <- c(labls$xvlines,xrnge) %>% sort() 
-                  xv <- xv[1:(length(xv)-1)] + diff(xv)/2
-            myplot <- myplot+ annotate("text", x = xv, y = mean(layer_scales(myplot)$y$range$range), label = labls$txt, angle = 90)
+                  xv <- c(xintercept, xrnge) %>% sort()
+                  xv <- xv[1:(length(xv) - 1)] + diff(xv) / 2
+                  myplot <-
+                        myplot + annotate(
+                              "text",
+                              x = xv,
+                              y = mean(layer_scales(myplot)$y$range$range),
+                              label = labls$txt,
+                              angle = 90
+                        )
+            }
+            return(myplot)
       }
-      return(myplot)
-}
-
 # Example 1
 nLay <- 3
 h <-
@@ -211,6 +230,7 @@ h <-
         1.60)
 nSec <- length(h)
 kD <- matrix(rep(c(35 * 30, 80 * 30, (55 / 2) * 0.075), nSec), nrow = nLay)
+#kD <- matrix(rep(c(1, 1, 1), nSec), nrow = nLay)
 c_ <- matrix(rep(c(50, 400, 85 / 0.075), nSec), nrow = nLay)
 Q <- matrix(rep(0, nLay * (nSec - 1)), nrow = nLay)
 x <- c(-1000, 1000, 3250, 4500, 5500, 6500, 7250, 8750, 9750, 10500)
@@ -235,20 +255,33 @@ m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "q")
 m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "s")
 
 ### Example 3. 
-### Copy range B1:BV8 from spreadsheet 'Example 3.xlsx' to clipboard.
+### Copy range B1:BW9 from spreadsheet 'Example 3.xlsx' to the clipboard.
 ### Then run the following code.
-nLay <- 2
-df <- clipr::read_clip_tbl(header=FALSE, dec=".") 
-X <- df[1,] %>% as.double() %>% as.vector()
-x <- X[1:(length(X)-1)] + diff(X)/2
+df <- clipr::read_clip_tbl(header = FALSE, dec = ".")
+area <- df[1, ] %>% as.character()
+df <- df[2:nrow(df), ] %>% mutate_if(is.character, as.numeric)
+nLay <- (nrow(df) - 2) / 3
 nSec <- ncol(df)
-h <- df[2,] %>% as.double() %>% as.vector()
-kD <- df[3:(nLay+2),] %>% data.matrix()
-c_ <- df[(nLay+3):(2*nLay+2),] %>% data.matrix()
-Q <- df[(2*nLay+3):(3*nLay+2),1:(nSec-1)] %>% data.matrix()
-m <- solve_mlay1d(kD, c_, Q, h, x, X)
-i <- which( (h == lead(h))!=TRUE)
-labls <- data.frame(xvlines=c(x[i],NA),txt=c("Polder","Dijk", "Slibvang","Dijk","Wad","Geul","Wad"))
-m %>% plot_mlay1d(X, layers = c(1:nLay), labls=labls)
-m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "q", labls=labls)
-m %>% plot_mlay1d(X, layers = c(1:nLay), ptype = "s", labls=labls)
+x <- df[1, 1:(nSec - 1)] %>% as.double() %>% as.vector()
+h <- df[2, ] %>% as.double() %>% as.vector()
+i <- seq(from = 3,
+         to = nLay * 3,
+         length.out = nLay)
+c_ <- df[i, ] %>% data.matrix()
+kD <- df[i + 1, ] %>% data.matrix()
+Q <- df[i + 2, ] %>% data.matrix()
+m <- solve_mlay1d(kD, c_, Q, h, x, X = x)
+i <- c(1, which((area == udpipe::txt_previous(area, n = 1)) != TRUE))
+labls <- data.frame(xvlines = x[i], txt = area[i])
+labls$xvlines[1] <- NA
+m %>% plot_mlay1d(X = x,
+                  layers = c(1:nLay),
+                  labls = labls)
+m %>% plot_mlay1d(X = x,
+                  layers = c(1:nLay),
+                  ptype = "q",
+                  labls = labls)
+m %>% plot_mlay1d(X = x,
+                  layers = c(1:nLay),
+                  ptype = "s",
+                  labls = labls)
