@@ -9,9 +9,9 @@ library(magrittr)
 # Constants
 min_nr_sections <- 2; max_nr_sections <- 25
 min_nr_aquifers <- 1; max_nr_aquifers <- 5
-min_kD <- 50;         max_kD <- 10000
+min_kD <- 1;         max_kD <- 10000
 min_Q <- -10^6;       max_Q <- 10^6
-min_c <- 50;          max_c <- 10000
+min_c <- 1;          max_c <- 10000
 min_h <- -1000;       max_h <- 1000
 
 
@@ -48,23 +48,73 @@ limit_matrix <- function(x, min_value, max_value) {
   apply(x, c(1,2), function(y) min(max(y,min_value),max_value))
 }
 
-#' Calculate the head and fluxes of an analytic steady-state, one-dimensional, 
-#' leaky multi-aquifer model using n connected sections. 
-#' Left and right most sections run to -inf and +inf resp.
+#' Allokate parameters (kD, c_, h) on refined intersection point vector.
+#' @param par_org Original parameter (kD, c_, h) 
+#' @param x_org  Original vector of coordinates of intersection points
+#' @param x Vector of coordinates of intersection points (except +/-inf, [L], nNod by 1)
+#' @return Refined model parameter (matrix).
+.refine_parm <- function( par_org, x_org, x ){
+      cbind(par_org[,1], 
+            par_org %>% apply(1, function(y)
+                  yorg <-
+                        y[2:length(y)] %>% as.array() %>% stats::approx(
+                              x = x_org,
+                              y = .,
+                              xout = x,
+                              method = "constant",
+                              f = 0
+                        )) %>% lapply(function(a) a$y) %>% do.call(rbind, .))
+}
+
+#' Allokate all model parameters on refined intersection point vector specified by 'f' and 'x'.
+#' @inheritParams .refine_parm      
+#' @param f  Number of sub-sections per intersection interval to create (f=1: no sub-sections. [-] integer)
 #' @param kD Matrix of transmissivity values  ([L2/T], nLay by nSec)
 #' @param c_ Matrix of vertical resistance values of overlaying aquitards ([T], nLay by nSec) 
 #' @param Q  Matrix of nodal injections ([L2/T], nLay by nSec-1) 
 #' @param h  Vector of given heads on top of each sections  ([L], 1 by nSec)
-#' @param x  Vector of coordinates of intersection points (except +/-inf, [L], nNod by 1)
+#' @return All model parameters (list).
+.refine_model <- function(f, kD, c_, Q, h, x) {
+      res <- list()
+      x_org <- x
+      dx <- diff(x_org) / f
+      midpoints <-
+            1:(f - 1) %>% as.array() %>% apply(1, function(a)
+                  x_org[1:(length(x_org) - 1)] + a * dx) %>% as.vector()
+      res$x <- c(x_org, midpoints) %>% sort()
+      res$kD <- kD %>% .refine_parm(x_org, res$x)
+      res$c_ <- c_ %>% .refine_parm(x_org, res$x)
+      res$h <-
+            h %>% as.matrix() %>% t() %>% .refine_parm(x_org, res$x) %>% as.vector()
+      res$Q <- matrix(0, nrow = nrow(Q), ncol = length(res$x))
+      res$Q[, match(x_org, res$x)] <- Q
+      return(res)
+}
+
+#' Calculate the head and fluxes of an analytic steady-state, one-dimensional, 
+#' leaky multi-aquifer model using n connected sections. 
+#' Left and right most sections run to -inf and +inf resp.
+#' @inheritParams .refine_model     
 #' @param X  Vector of points where values will be computed ([L] =npoints)
 #' @return   Matrix with calculated heads ([L] rows (1-nLay)); lateral fluxes ([L2/T] rows (nLay+1 - 2xnLay)); seepage ([L/T] rows (2xnLay+1 - 3xnLay))
-solve_mlay1d <- function(kD, c_, Q, h, x, X) {
+solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
+      if (f > 1) {
+            # Create sub-sections per intersection interval to increase numerical stability
+            #print(paste("Refine modelgrid f=",as.character(f)))
+            res <- .refine_model(f, kD, c_, Q, h, x)
+            kD <- res$kD
+            c_ <- res$c_
+            Q <- res$Q
+            h <- res$h
+            x <- res$x
+      }
+      
+      Q %<>% cbind(0, ., 0)
+      x %<>% c(-Inf, ., Inf)
       nSec <- length(h)
       nNod <- nSec - 1
       nLay <- nrow(c_)
       
-      Q %<>% cbind(0, ., 0)
-      x %<>% c(-Inf, ., Inf)
       Nx <- x %>% length()
       H <- h %>% rep(nLay) %>% matrix(nrow = nLay, byrow = TRUE)
       
@@ -72,6 +122,8 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
       xMidSec <- .5 * (x[-length(x)] + x[-1])
       xMidSec[1] <- x[2]
       xMidSec[length(xMidSec)] <- x[length(x) - 1]
+      
+      withProgress(message="System matrices for all sections.", min=1, max=nSec, value=0, {
       
       # System matrices for all sections.
       A <- array(dim = c(nLay, nLay, nSec))
@@ -85,11 +137,16 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
                   b <- 0 %>% as.matrix()
                   A[, , iSec] <- diag(a + b)
             }
+            incProgress(1)
       }
+      
+      })
       
       C <- matrix(0, nrow = nLay * (2 * (Nx - 2)),
                   ncol = nLay * (2 * (Nx - 2) + 2))
       R <-  matrix(0, nrow = nLay * (2 * (Nx - 2)), ncol = 1)
+      
+      withProgress(message="Creating matrices C & R", min=1, max=nNod, value=0, {
       
       for (i in 1:nNod) {
             j <- i + 1
@@ -115,22 +172,39 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
             di %<>% diag()
             dj %<>% diag()
             
+            exp1 <- (x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i]))
+            exp2 <- (x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j]))
+            #crit <- range(c(range(exp1),c(range(exp2)))) %>% abs() %>% max()
+            #if (crit>20) {
+            #      m <- solve_mlay1d(kD, c_, Q[,2:(ncol(Q)-1)], h, x[2:(length(x)-1)], X, f=3) 
+            #      return( m )
+            #}            
+            
             C[(ii + nLay):(jj + nLay), (ii:jj)] <-
-                  -di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+                  -di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(-exp1)
             C[(ii + nLay):(jj + nLay), (ii + nLay):(jj + nLay)] <-
-                  +di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+                  +di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(exp1)
             
             C[(ii + nLay):(jj + nLay), (ii + 2 * nLay):(jj + 2 * nLay)] <-
-                  +dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+                  +dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(-exp2)
             C[(ii + nLay):(jj + nLay), (ii + 3 * nLay):(jj + 3 * nLay)] <-
-                  -dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+                  -dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(exp2)
             R[(ii + nLay):(jj + nLay)] <- Q[, j]
+            incProgress(1)
       }
+            
+      }) # withProgress
       
+      
+      withProgress(message="Solving linear system of equations.", {
       # Mimic mldivide
       COEF <- solve(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
             c(rep(0, nLay), ., rep(0, nLay))
+      }) # withProgress
       
+      
+      withProgress(message="Creating matrix with heads, lateral fluxes and seepage.", min=1, max=length(X), value=0, {
+            
       phi <- matrix(0, nrow = nLay, ncol = length(X))
       q <- phi
       s <- q
@@ -161,6 +235,8 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X) {
                   }
             }
       }
+      
+      })
       return(rbind(phi, q, s))
 }
 
@@ -201,7 +277,7 @@ plot_mlay1d <- function(m, X, layers = 1, ptype = "phi", xvlines=NULL) {
                   y = value,
                   colour = Aquifer
             )) +
-            geom_line() +
+            geom_line(size=1) +
             labs(
                   colour = "Aquifer",
                   x = "X (m)",
@@ -301,7 +377,8 @@ function(input, output, session) {
     h <- input$h %>% as.vector()
     x <- input$x %>% as.vector()
     X <- X() %>% as.vector()
-    res <- solve_mlay1d(t(input$kD), t(input$c_), t(input$Q), h, x, X)
+    f <- input$f_ %>% as.vector()
+    res <- solve_mlay1d(t(input$kD), t(input$c_), t(input$Q), h, x, X, f=f )
     return(res)
   })
   

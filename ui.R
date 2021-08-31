@@ -9,6 +9,7 @@ c_  <- c(50, 400, 85 / 0.075) %>% rep(nrw) %>% matrix(ncol = nrw) %>% t() # Vert
 h   <- matrix(c(-1.10, -3.85, -1.20, -1.00, -0.80, -0.40, 0.00, 0.40, 0.80, 1.20, 1.60), nrw, 1) # Head on top of each section [m]
 x   <- matrix(c(-1000, 1000, 3250, 4500, 5500, 6500, 7250, 8750, 9750, 10500), (nrw-1), 1) # Coordinates of intersection points [m]
 Q   <- matrix(0, nrow = (nrw-1), ncol = ncl) # Matrix of nodal injections [m2/day]
+f_ <- 1 # Number of sub-sections per intersection interval to create (f=1: no sub-sections. [-] integer)
 
 grid_min <- -2500 # Minimum coordinate where values will be computed (m)
 grid_max <- 11000 # Maximum coordinate where values will be computed (m)
@@ -20,7 +21,7 @@ shiny::tagList(
         tabsetPanel(
             tabPanel(title="Control",
                      sidebarPanel(
-                         width=3,
+                         width=4,
                          actionButton("go", "Refresh results & plots", class = "btn-warning"),
                          numericInput("ncl", "Nr. of aquifers", ncl, min = 1, max = 5),
                          numericInput("nrw", "Nr. of sections", nrw, min = 2, max = 5),
@@ -36,6 +37,7 @@ shiny::tagList(
                                 names= FALSE
                             )
                          ),
+                         numericInput("f_", "Divide sections in f-parts [-]", f_, step=1, min = 1, max = 100),
                          numericInput("grid_min", "Calc. grid min [m]", grid_min),
                          numericInput("grid_max", "Calc. grid max [m]", grid_max),
                          numericInput("nr_grid_points", "Nr. of calc. grid points (-)", nr_grid_points, min=1, max=10000)
