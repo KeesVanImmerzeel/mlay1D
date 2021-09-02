@@ -24,7 +24,7 @@ shiny::tagList(
                          width=4,
                          actionButton("go", "Refresh results & plots", class = "btn-warning"),
                          numericInput("ncl", "Nr. of aquifers", ncl, min = 1, max = 5),
-                         numericInput("nrw", "Nr. of sections", nrw, min = 2, max = 5),
+                         numericInput("nrw", "Nr. of sections", nrw, min = 2, max = 26),
                          matrixInput(
                              inputId = "x",
                              label = "Intersection points [m]",
@@ -38,9 +38,9 @@ shiny::tagList(
                             )
                          ),
                          numericInput("f_", "Divide sections in f-parts [-]", f_, step=1, min = 1, max = 100),
-                         numericInput("grid_min", "Calc. grid min [m]", grid_min),
-                         numericInput("grid_max", "Calc. grid max [m]", grid_max),
-                         numericInput("nr_grid_points", "Nr. of calc. grid points (-)", nr_grid_points, min=1, max=10000)
+                         numericInput("grid_min", "Presentation grid min [m]", grid_min),
+                         numericInput("grid_max", "Presentation grid max [m]", grid_max),
+                         numericInput("nr_grid_points", "Nr. of presentation points (-)", nr_grid_points, min=1, max=10000)
                          )),
             tabPanel(title = "Transmissivity [m2/day]",
                      sidebarPanel(

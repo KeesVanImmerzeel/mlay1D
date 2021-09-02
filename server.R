@@ -5,6 +5,7 @@ library(ggplot2)
 library(reshape2)
 library(dplyr)
 library(magrittr)
+library(tidyr)
 
 # Constants
 min_nr_sections <- 2; max_nr_sections <- 25
@@ -96,7 +97,7 @@ limit_matrix <- function(x, min_value, max_value) {
 #' Left and right most sections run to -inf and +inf resp.
 #' @inheritParams .refine_model     
 #' @param X  Vector of points where values will be computed ([L] =npoints)
-#' @return   Matrix with calculated heads ([L] rows (1-nLay)); lateral fluxes ([L2/T] rows (nLay+1 - 2xnLay)); seepage ([L/T] rows (2xnLay+1 - 3xnLay))
+#' @return   Matrix with X (row 1), calculated heads ([L] rows (2-nLay+1)); lateral fluxes ([L2/T] rows (nLay+2 - 2xnLay+1)); seepage ([L/T] rows (2xnLay+2 - 3xnLay+1))
 solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
       if (f > 1) {
             # Create sub-sections per intersection interval to increase numerical stability
@@ -140,29 +141,33 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
             incProgress(1)
       }
       
-      })
+      }) #withProgress
+      
+      
+      withProgress(message="Creating matrices C & R", min=1, max=nNod, value=0, {
       
       C <- matrix(0, nrow = nLay * (2 * (Nx - 2)),
                   ncol = nLay * (2 * (Nx - 2) + 2))
       R <-  matrix(0, nrow = nLay * (2 * (Nx - 2)), ncol = 1)
       
-      withProgress(message="Creating matrices C & R", min=1, max=nNod, value=0, {
-      
       for (i in 1:nNod) {
             j <- i + 1
             ii <- 2 * nLay * (i - 1) + 1
             jj <- ii + nLay - 1
+            exp1 <- expm::sqrtm(as.matrix(A[, , i]))
+            exp2 <- expm::sqrtm(as.matrix(A[, , j]))
             C[ii:jj, ii:jj] <-
-                  +expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+                  +expm::expm(-(x[j] - xMidSec[i]) * exp1)
+            
             C[ii:jj, (ii + nLay):(jj + nLay)] <-
-                  +expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+                  +expm::expm(+(x[j] - xMidSec[i]) * exp1)
+            
             C[ii:jj, (ii + 2 * nLay):(jj + 2 * nLay)] <-
-                  -expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+                  -expm::expm(-(x[j] - xMidSec[j]) * exp2)
             
             C[ii:jj, (ii + 3 * nLay):(jj + 3 * nLay)] <-
-                  -expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+                  -expm::expm(+(x[j] - xMidSec[j]) * exp2)
             R[ii:jj] <- -H[, i] + H[, j]
-            
             di <- kD[, i]
             dj <- kD[, j]
             if (nLay == 1) {
@@ -171,36 +176,37 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
             }
             di %<>% diag()
             dj %<>% diag()
-            
             exp1 <- (x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i]))
             exp2 <- (x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j]))
             #crit <- range(c(range(exp1),c(range(exp2)))) %>% abs() %>% max()
-            #if (crit>20) {
+            #if (crit>25) {
             #      m <- solve_mlay1d(kD, c_, Q[,2:(ncol(Q)-1)], h, x[2:(length(x)-1)], X, f=3) 
             #      return( m )
-            #}            
-            
+            #}
+            exp3 <- expm::sqrtm(as.matrix(A[, , i]))
+            exp4 <- expm::sqrtm(as.matrix(A[, , j]))
             C[(ii + nLay):(jj + nLay), (ii:jj)] <-
-                  -di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(-exp1)
+                  -di %*% exp3 %*% expm::expm(-exp1)
             C[(ii + nLay):(jj + nLay), (ii + nLay):(jj + nLay)] <-
-                  +di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(exp1)
-            
+                  +di %*% exp3 %*% expm::expm(exp1)
             C[(ii + nLay):(jj + nLay), (ii + 2 * nLay):(jj + 2 * nLay)] <-
-                  +dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(-exp2)
+                  +dj %*% exp4 %*% expm::expm(-exp2)
             C[(ii + nLay):(jj + nLay), (ii + 3 * nLay):(jj + 3 * nLay)] <-
-                  -dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(exp2)
+                  -dj %*% exp4 %*% expm::expm(exp2)
             R[(ii + nLay):(jj + nLay)] <- Q[, j]
             incProgress(1)
       }
-            
-      }) # withProgress
+      
+      }) # withProgress   
       
       
       withProgress(message="Solving linear system of equations.", {
+            
       # Mimic mldivide
       COEF <- solve(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
             c(rep(0, nLay), ., rep(0, nLay))
-      }) # withProgress
+      
+      }) # withProgress      
       
       
       withProgress(message="Creating matrix with heads, lateral fluxes and seepage.", min=1, max=length(X), value=0, {
@@ -208,10 +214,12 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
       phi <- matrix(0, nrow = nLay, ncol = length(X))
       q <- phi
       s <- q
+      
       for (i in 1:length(X)) {
             iSec <- which(X[i] > x[1:(length(x) - 1)] & X[i] <= x[2:length(x)])
             k <- 2 * nLay * (iSec - 1) + 1
             l <- k + nLay - 1
+            
             sqm <- expm::sqrtm(as.matrix(A[, , iSec]))
             d <- X[i] - xMidSec[iSec]
             C1 <-
@@ -234,61 +242,88 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
                         s[iLay, i] <- sNet[iLay] + s[(iLay + 1), i]
                   }
             }
+            incProgress(1)
       }
       
-      })
-      return(rbind(phi, q, s))
+      }) # withProgress
+      
+      return(rbind(X, phi, q, s))
 }
 
 #' Plot results of function solve_mlay1d
 #' @inheritParams solve_mlay1d
-#' @param m Matrix with calculated heads; lateral fluxes; seepage
+#' @param m Matrix with X and calculated heads, lateral fluxes and seepage
 #' @layers number(s) of layers to plot (numeric)
 #' @param ptype Type of plot to create ("phi"=default, "q", "s")
-#' @param xvlines x-coordinates of (optional) vertical lines in plot (numeric vector)
+#' @param labls optional data-frame with x-coordinates of (optional) vertical lines in plot (numeric) and labels (character)
 #' return ggplot2 object
-plot_mlay1d <- function(m, X, layers = 1, ptype = "phi", xvlines=NULL) {
-      sel_names <- paste0(ptype, layers)
-      m %<>% t() %>% as.data.frame()
-      nlay <- ncol(m) / 3
-      names(m) <-
-            c(paste0("phi", 1:nlay),
-              paste0("q", 1:nlay),
-              paste0("s", 1:nlay))
-      sel_names <- paste0(ptype, layers)
-      m %<>% dplyr::select(all_of(sel_names))
-      names(m) <- layers %>% as.character()
-      m$X <- X
-      m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer")
-      
-      if (ptype == "phi") {
-            ylab <- "Head (m+ref)"
-            title <- "Head"
-      } else if (ptype == "q") {
-            ylab <- "Lateral flux (m2/d)"
-            title <- "Lateral flux"
-      } else {
-            ylab <- "Seepage (m/d)"
-            title <- "Seepage"
+plot_mlay1d <-
+      function(m,
+               layers = 1,
+               ptype = "phi",
+               labls = NULL) {
+            m %<>% t() %>% as.data.frame()
+            X <- m[,1]
+            m <- m[,2:ncol(m)]
+            nlay <- ncol(m) / 3
+            
+            sel_names <- paste0(ptype, layers)
+            names(m) <-
+                  c(paste0("phi", 1:nlay),
+                    paste0("q", 1:nlay),
+                    paste0("s", 1:nlay))
+            sel_names <- paste0(ptype, layers)
+            m %<>% dplyr::select(all_of(sel_names))
+            names(m) <- layers %>% as.character()
+            m$X <- X
+            m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer") %>% tidyr::drop_na()
+            
+            if (ptype == "phi") {
+                  ylab <- "Head (m+ref)"
+                  title <- "Head"
+            } else if (ptype == "q") {
+                  ylab <- "Lateral flux (m2/d)"
+                  title <- "Lateral flux"
+            } else {
+                  ylab <- "Seepage (m/d)"
+                  title <- "Seepage"
+            }
+            myplot <-
+                  ggplot(data = m, aes(
+                        x = X,
+                        y = value,
+                        colour = Aquifer
+                  )) +
+                  geom_line(size=1) +
+                  labs(
+                        colour = "Aquifer",
+                        x = "X (m)",
+                        y = ylab,
+                        title = title
+                  ) +
+                  theme(plot.title = element_text(hjust = 0.5))
+            if (!is.null(labls)) {
+                  xintercept <- labls$xvlines[!is.na(labls$xvlines)]
+                  myplot <-
+                        myplot + geom_vline(
+                              xintercept = xintercept,
+                              linetype = "dotted",
+                              color = "blue"
+                        )
+                  xrnge <- layer_scales(myplot)$x$range$range
+                  xv <- c(xintercept, xrnge) %>% sort()
+                  xv <- xv[1:(length(xv) - 1)] + diff(xv) / 2
+                  myplot <-
+                        myplot + annotate(
+                              "text",
+                              x = xv,
+                              y = layer_scales(myplot)$y$range$range[1],
+                              label = labls$txt#,
+                              #angle = 90
+                        )
+            }
+            return(myplot)
       }
-      myplot <-
-            ggplot(data = m, aes(
-                  x = X,
-                  y = value,
-                  colour = Aquifer
-            )) +
-            geom_line(size=1) +
-            labs(
-                  colour = "Aquifer",
-                  x = "X (m)",
-                  y = ylab,
-                  title = title
-            ) +
-            theme(plot.title = element_text(hjust = 0.5)) +
-            geom_vline(xintercept = xvlines, linetype="dotted", 
-                       color = "blue")
-      return(myplot)
-}
 
 function(input, output, session) {
   nrw <-
@@ -299,6 +334,11 @@ function(input, output, session) {
     reactive({
       trunc(min(max(input$ncl, min_nr_aquifers), max_nr_aquifers))
     })
+  
+  labls <- reactive({
+        x <- input$x %>% as.vector()
+        return( data.frame(xvlines = c(NA,x), txt = LETTERS[1:(length(x)+1)]) )
+  })
   
   observeEvent(input$Q, {
     Q <- limit_matrix(input$Q, min_Q, max_Q)
@@ -385,39 +425,42 @@ function(input, output, session) {
   output$matrix <- renderDataTable({
     m <- m_()
     m %<>% t() %>% as.data.frame()
+    X <- m[,1]
+    m <- m[,2:ncol(m)]
+
     nlay <- ncol(m) / 3
     names(m) <-
       c(paste0("phi", 1:nlay),
         paste0("q", 1:nlay),
         paste0("s", 1:nlay, "(x1000)"))
-    m$X <- X()
     m[,1:nlay] %<>% round(.,2)
     m[,(2*nlay+1):(3*nlay)] <- 1000* m[,(2*nlay+1):(3*nlay)]
     m[,(nlay+1):(2*nlay)] %<>% round(.,4)
     m[,(2*nlay+1):(3*nlay)] %<>% round(.,1)
+    m$X <- X
     m %<>% dplyr::relocate(X, .before = phi1)
     m
   })
   
   output$phi_plot <- renderPlot({
     m <- m_()
-    nlay <- nrow(m) / 3
-    x <- input$x %>% as.vector()
-    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "phi", xvlines=x)
+    nlay <- (nrow(m)-1) / 3
+    labls <- labls() %>% as.data.frame()
+    plot_mlay1d(m, layers = 1:nlay, ptype = "phi", labls = labls)
   })
   
   output$q_plot <- renderPlot({
     m <- m_()
-    nlay <- nrow(m) / 3
-    x <- input$x %>% as.vector()
-    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "q", xvlines=x)
+    nlay <- (nrow(m)-1) / 3
+    labls <- labls() %>% as.data.frame()
+    plot_mlay1d(m, layers = 1:nlay, ptype = "q", labls = labls)
   })
   
   output$s_plot <- renderPlot({
     m <- m_()
-    nlay <- nrow(m) / 3
-    x <- input$x %>% as.vector()
-    plot_mlay1d(m, X(), layers = 1:nlay, ptype = "s", xvlines=x)
+    nlay <- (nrow(m)-1) / 3
+    labls <- labls() %>% as.data.frame()
+    plot_mlay1d(m, layers = 1:nlay, ptype = "s", labls = labls)
   })
   
 }
