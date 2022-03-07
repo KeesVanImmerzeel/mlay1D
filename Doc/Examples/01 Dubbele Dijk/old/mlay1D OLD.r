@@ -9,9 +9,7 @@ packages.loading <-
          "magrittr",
          "ggplot2",
          "clipr",
-         "udpipe",
-         "stats",
-         "tidyr"
+         "udpipe"
       )
 new.packages <-
       packages.loading[!(packages.loading %in% installed.packages()[, "Package"])]
@@ -24,73 +22,24 @@ installr::updateR() #If packages can't be installed update Rstudio
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 getwd()
 
-#' Allokate parameters (kD, c_, h) on refined intersection point vector.
-#' @param par_org Original parameter (kD, c_, h) 
-#' @param x_org  Original vector of coordinates of intersection points
-#' @param x Vector of coordinates of intersection points (except +/-inf, [L], nNod by 1)
-#' @return Refined model parameter (matrix).
-.refine_parm <- function( par_org, x_org, x ){
-      cbind(par_org[,1], 
-            par_org %>% apply(1, function(y)
-                  yorg <-
-                        y[2:length(y)] %>% as.array() %>% stats::approx(
-                              x = x_org,
-                              y = .,
-                              xout = x,
-                              method = "constant",
-                              f = 0
-                        )) %>% lapply(function(a) a$y) %>% do.call(rbind, .))
-}
-
-#' Allokate all model parameters on refined intersection point vector specified by 'f' and 'x'.
-#' @inheritParams .refine_parm      
-#' @param f  Number of sub-sections per intersection interval to create (f=1: no sub-sections. [-] integer)
+### Functions ### 
+#' Calculate the head and fluxes of an analytic steady-state, one-dimensional, 
+#' leaky multi-aquifer model using n connected sections. 
+#' Left and right most sections run to -inf and +inf resp.
 #' @param kD Matrix of transmissivity values  ([L2/T], nLay by nSec)
 #' @param c_ Matrix of vertical resistance values of overlaying aquitards ([T], nLay by nSec) 
 #' @param Q  Matrix of nodal injections ([L2/T], nLay by nSec-1) 
 #' @param h  Vector of given heads on top of each sections  ([L], 1 by nSec)
-#' @return All model parameters (list).
-.refine_model <- function(f, kD, c_, Q, h, x) {
-      res <- list()
-      x_org <- x
-      dx <- diff(x_org) / f
-      midpoints <-
-            1:(f - 1) %>% as.array() %>% apply(1, function(a)
-                  x_org[1:(length(x_org) - 1)] + a * dx) %>% as.vector()
-      res$x <- c(x_org, midpoints) %>% sort()
-      res$kD <- kD %>% .refine_parm(x_org, res$x)
-      res$c_ <- c_ %>% .refine_parm(x_org, res$x)
-      res$h <-
-            h %>% as.matrix() %>% t() %>% .refine_parm(x_org, res$x) %>% as.vector()
-      res$Q <- matrix(0, nrow = nrow(Q), ncol = length(res$x))
-      res$Q[, match(x_org, res$x)] <- Q
-      return(res)
-}
-
-#' Calculate the head and fluxes of an analytic steady-state, one-dimensional, 
-#' leaky multi-aquifer model using n connected sections. 
-#' Left and right most sections run to -inf and +inf resp.
-#' @inheritParams .refine_model     
+#' @param x  Vector of coordinates of intersection points (except +/-inf, [L], nNod by 1)
 #' @param X  Vector of points where values will be computed ([L] =npoints)
-#' @return   Matrix with X (row 1), calculated heads ([L] rows (2-nLay+1)); lateral fluxes ([L2/T] rows (nLay+2 - 2xnLay+1)); seepage ([L/T] rows (2xnLay+2 - 3xnLay+1))
-solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
-      if (f > 1) {
-            # Create sub-sections per intersection interval to increase numerical stability
-            print(paste("Refine modelgrid f=",as.character(f)))
-            res <- .refine_model(f, kD, c_, Q, h, x)
-            kD <- res$kD
-            c_ <- res$c_
-            Q <- res$Q
-            h <- res$h
-            x <- res$x
-      }
-      
-      Q %<>% cbind(0, ., 0)
-      x %<>% c(-Inf, ., Inf)
+#' @return   Matrix with calculated heads ([L] rows (1-nLay)); lateral fluxes ([L2/T] rows (nLay+1 - 2xnLay)); seepage ([L/T] rows (2xnLay+1 - 3xnLay))
+solve_mlay1d <- function(kD, c_, Q, h, x, X) {
       nSec <- length(h)
       nNod <- nSec - 1
       nLay <- nrow(c_)
       
+      Q %<>% cbind(0, ., 0)
+      x %<>% c(-Inf, ., Inf)
       Nx <- x %>% length()
       H <- h %>% rep(nLay) %>% matrix(nrow = nLay, byrow = TRUE)
       
@@ -121,20 +70,17 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
             j <- i + 1
             ii <- 2 * nLay * (i - 1) + 1
             jj <- ii + nLay - 1
-            exp1 <- expm::sqrtm(as.matrix(A[, , i]))
-            exp2 <- expm::sqrtm(as.matrix(A[, , j]))
             C[ii:jj, ii:jj] <-
-                  +expm::expm(-(x[j] - xMidSec[i]) * exp1)
-
+                  +expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
             C[ii:jj, (ii + nLay):(jj + nLay)] <-
-                  +expm::expm(+(x[j] - xMidSec[i]) * exp1)
-
+                  +expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
             C[ii:jj, (ii + 2 * nLay):(jj + 2 * nLay)] <-
-                  -expm::expm(-(x[j] - xMidSec[j]) * exp2)
-
+                  -expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
+            
             C[ii:jj, (ii + 3 * nLay):(jj + 3 * nLay)] <-
-                  -expm::expm(+(x[j] - xMidSec[j]) * exp2)
+                  -expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
             R[ii:jj] <- -H[, i] + H[, j]
+            
             di <- kD[, i]
             dj <- kD[, j]
             if (nLay == 1) {
@@ -143,39 +89,33 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
             }
             di %<>% diag()
             dj %<>% diag()
-            exp1 <- (x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i]))
-            exp2 <- (x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j]))
-            #crit <- range(c(range(exp1),c(range(exp2)))) %>% abs() %>% max()
-            #if (crit>25) {
-            #      m <- solve_mlay1d(kD, c_, Q[,2:(ncol(Q)-1)], h, x[2:(length(x)-1)], X, f=3) 
-            #      return( m )
-            #}
-            exp3 <- expm::sqrtm(as.matrix(A[, , i]))
-            exp4 <- expm::sqrtm(as.matrix(A[, , j]))
+            
             C[(ii + nLay):(jj + nLay), (ii:jj)] <-
-                  -di %*% exp3 %*% expm::expm(-exp1)
+                  -di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(-(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
             C[(ii + nLay):(jj + nLay), (ii + nLay):(jj + nLay)] <-
-                  +di %*% exp3 %*% expm::expm(exp1)
+                  +di %*% expm::sqrtm(as.matrix(A[, , i])) %*% expm::expm(+(x[j] - xMidSec[i]) * expm::sqrtm(as.matrix(A[, , i])))
+            
             C[(ii + nLay):(jj + nLay), (ii + 2 * nLay):(jj + 2 * nLay)] <-
-                  +dj %*% exp4 %*% expm::expm(-exp2)
+                  +dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(-(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
             C[(ii + nLay):(jj + nLay), (ii + 3 * nLay):(jj + 3 * nLay)] <-
-                  -dj %*% exp4 %*% expm::expm(exp2)
+                  -dj %*% expm::sqrtm(as.matrix(A[, , j])) %*% expm::expm(+(x[j] - xMidSec[j]) * expm::sqrtm(as.matrix(A[, , j])))
             R[(ii + nLay):(jj + nLay)] <- Q[, j]
       }
       
       # Mimic mldivide
+      #      COEF <- limSolve::Solve.banded(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
+      #                   c(rep(0, nLay), ., rep(0, nLay))
+      
       COEF <- solve(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
             c(rep(0, nLay), ., rep(0, nLay))
       
       phi <- matrix(0, nrow = nLay, ncol = length(X))
       q <- phi
       s <- q
-      
       for (i in 1:length(X)) {
             iSec <- which(X[i] > x[1:(length(x) - 1)] & X[i] <= x[2:length(x)])
             k <- 2 * nLay * (iSec - 1) + 1
             l <- k + nLay - 1
-            
             sqm <- expm::sqrtm(as.matrix(A[, , iSec]))
             d <- X[i] - xMidSec[iSec]
             C1 <-
@@ -199,28 +139,25 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
                   }
             }
       }
-      
-      return(rbind(X, phi, q, s))
+      return(rbind(phi, q, s))
 }
 
 #' Plot results of function solve_mlay1d
 #' @inheritParams solve_mlay1d
-#' @param m Matrix with X and calculated heads, lateral fluxes and seepage
+#' @param m Matrix with calculated heads; lateral fluxes; seepage
 #' @layers number(s) of layers to plot (numeric)
 #' @param ptype Type of plot to create ("phi"=default, "q", "s")
 #' @param labls optional data-frame with x-coordinates of (optional) vertical lines in plot (numeric) and labels (character)
 #' return ggplot2 object
 plot_mlay1d <-
       function(m,
+               X,
                layers = 1,
                ptype = "phi",
                labls = NULL) {
-            m %<>% t() %>% as.data.frame()
-            X <- m[,1]
-            m <- m[,2:ncol(m)]
-            nlay <- ncol(m) / 3
-            
             sel_names <- paste0(ptype, layers)
+            m %<>% t() %>% as.data.frame()
+            nlay <- ncol(m) / 3
             names(m) <-
                   c(paste0("phi", 1:nlay),
                     paste0("q", 1:nlay),
@@ -229,7 +166,7 @@ plot_mlay1d <-
             m %<>% dplyr::select(all_of(sel_names))
             names(m) <- layers %>% as.character()
             m$X <- X
-            m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer") %>% tidyr::drop_na()
+            m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer")
             
             if (ptype == "phi") {
                   ylab <- "Head (m+ref)"
@@ -270,7 +207,7 @@ plot_mlay1d <-
                         myplot + annotate(
                               "text",
                               x = xv,
-                              y = layer_scales(myplot)$y$range$range[1],
+                              y = mean(layer_scales(myplot)$y$range$range),
                               label = labls$txt,
                               angle = 90
                         )
@@ -278,48 +215,7 @@ plot_mlay1d <-
             return(myplot)
       }
 
-# Example 1
-nLay <- 3
-h <-
-      c(-1.10,
-        -3.85,
-        -1.20,
-        -1.00,
-        -0.80,
-        -0.40,
-        -0.00,
-        0.40,
-        0.80,
-        1.20,
-        1.60)
-nSec <- length(h)
-kD <- matrix(rep(c(35 * 30, 80 * 30, (55 / 2) * 0.075), nSec), nrow = nLay)
-#kD <- matrix(rep(c(1, 1, 1), nSec), nrow = nLay)
-c_ <- matrix(rep(c(50, 400, 85 / 0.075), nSec), nrow = nLay)
-Q <- matrix(rep(0, nLay * (nSec - 1)), nrow = nLay)
-x <- c(-1000, 1000, 3250, 4500, 5500, 6500, 7250, 8750, 9750, 10500)
-X <- seq(-2500, 11000, 10)
-m <- solve_mlay1d(kD, c_, Q, h, x, X)
-m %>% plot_mlay1d(layers = c(1:nLay))
-m %>% plot_mlay1d(layers = c(1:nLay), ptype = "q")
-m %>% plot_mlay1d(layers = c(1:nLay), ptype = "s")
-
-### Example 2
-nLay <- 1
-nSec <- 4
-kD <- matrix(rep(2000, nSec), nrow = nLay)
-c_ <- matrix(c(rep(1000, nSec - 1), 10), nrow = nLay)
-Q <- matrix(rep(0, nLay * (nSec - 1)), nrow = nLay)
-h <- c(-1.2, -0.2, 0.3, 0)
-x <- c(830, 1185, 1300)
-X <- seq(0, 1800, 10)
-m <- solve_mlay1d(kD, c_, Q, h, x, X)
-m %>% plot_mlay1d(layers = c(1:nLay))
-m %>% plot_mlay1d(layers = c(1:nLay), ptype = "q")
-m %>% plot_mlay1d(layers = c(1:nLay), ptype = "s")
-
-### Example 3. Use spreadsheet as input.
-### Copy range B1:BW9 from spreadsheet 'Example 3.xlsx' to the clipboard.
+### Copy range B1:BW9 from spreadsheet 'Dwarsraai A.xlsx' (or 'Dwarsraai B.xlsx') to the clipboard.
 ### Then run the following code.
 df <- clipr::read_clip_tbl(header = FALSE, dec = ".")
 area <- df[1, ] %>% as.character()
@@ -338,44 +234,18 @@ m <- solve_mlay1d(kD, c_, Q, h, x, X = x)
 i <- c(1, which((area == udpipe::txt_previous(area, n = 1)) != TRUE))
 labls <- data.frame(xvlines = x[i], txt = area[i])
 labls$xvlines[1] <- NA
-m %>% plot_mlay1d(
+m %>% plot_mlay1d(X = x,
                   layers = c(1:nLay),
                   labls = labls)
 m %>% plot_mlay1d(
-                  layers = c(1:nLay),
-                  ptype = "q",
-                  labls = labls)
+  X = x,
+  layers = c(1:nLay),
+  ptype = "q",
+  labls = labls
+)
 m %>% plot_mlay1d(
-                  layers = c(1:nLay),
-                  ptype = "s",
-                  labls = labls)
-
-# Example 4: Create sub-sections (50) per intersection interval to increase numerical stability.
-nLay <- 4
-h <-
-      c(-1.10,
-        -3.85,
-        -1.20,
-        -1.00,
-        -0.80,
-        -0.40,
-        -0.00,
-        0.40,
-        0.80,
-        1.20,
-        1.60)
-nSec <- length(h)
-kD <- matrix(rep(c(35 * 30, 80 * 30, (55 / 2) * 0.075, 1), nSec), nrow = nLay)
-#kD <- matrix(rep(c(1, 1, 1), nSec), nrow = nLay)
-c_ <- matrix(rep(c(50, 400, 85 / 0.075, 1), nSec), nrow = nLay)
-Q <- matrix(rep(0, nLay * (nSec - 1)), nrow = nLay)
-x <- c(-1000, 1000, 3250, 4500, 5500, 6500, 7250, 8750, 9750, 10500)
-X <- seq(-2500, 11000, 10)
-m <- solve_mlay1d(kD, c_, Q, h, x, X, f=50) # Results are produced.
-m <- solve_mlay1d(kD, c_, Q, h, x, X) # No results produced.
-m %>% plot_mlay1d(layers = c(1:nLay))
-m %>% plot_mlay1d(layers = c(1:nLay), ptype = "q")
-m %>% plot_mlay1d(layers = c(1:nLay), ptype = "s")
-
-
-
+  X = x,
+  layers = c(1:nLay),
+  ptype = "s",
+  labls = labls
+)

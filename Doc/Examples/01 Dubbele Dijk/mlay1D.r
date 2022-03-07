@@ -11,7 +11,8 @@ packages.loading <-
          "clipr",
          "udpipe",
          "stats",
-         "tidyr"
+         "tidyr",
+         "openxlsx"
       )
 new.packages <-
       packages.loading[!(packages.loading %in% installed.packages()[, "Package"])]
@@ -206,7 +207,7 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
 #' Plot results of function solve_mlay1d
 #' @inheritParams solve_mlay1d
 #' @param m Matrix with X and calculated heads, lateral fluxes and seepage
-#' @layers number(s) of layers to plot (numeric)
+#' @param layers number(s) of layers to plot (numeric)
 #' @param ptype Type of plot to create ("phi"=default, "q", "s")
 #' @param labls optional data-frame with x-coordinates of (optional) vertical lines in plot (numeric) and labels (character)
 #' return ggplot2 object
@@ -278,6 +279,111 @@ plot_mlay1d <-
             return(myplot)
       }
 
+# Convert data that is read with openxlsx::read.xlsx to mLay1D input
+xls2mlay2D <- function(df) {
+  res <- list()
+  
+  res$area <- df[1, ] %>% as.character()
+  df <- df[2:nrow(df), ]  %>% mutate_if(is.character, as.numeric)
+  res$nLay <- (nrow(df) - 2) / 3
+  res$nSec <- ncol(df)
+  res$x <- df[1, 1:(res$nSec - 1)] %>% as.double() %>% as.vector()
+  res$h <- df[2, ] %>% as.double() %>% as.vector()
+  i <- seq(from = 3,
+           to = res$nLay * 3,
+           length.out = res$nLay)
+  res$c_ <- df[i, ] %>% data.matrix()
+  res$kD <- df[i + 1, ] %>% data.matrix()
+  res$Q <- df[i + 2, ] %>% data.matrix()
+  i <- c(1, which((res$area == udpipe::txt_previous(res$area, n = 1)) != TRUE))
+  res$labls <- data.frame(xvlines = res$x[i], txt = res$area[i])
+  res$labls$xvlines[1] <- NA
+  return(res)
+}
+
+######################################################################
+
+# Hulp functies om gemiddelde kwel (mm) te berekenen afhankelijk van de weerstand van de deklaag
+.avseepage <-  function( cnew, res, xrange ){
+  m <- solve_mlay1d(res$kD, c_=rbind(res$c[1,],cnew), res$Q, res$h, res$x, X = res$x)
+  i <- which(res$x > xrange[1] & res$x < xrange[2])
+  avseepage <- mean(m[7,i]) * 1000 %>% round(digits=2) 
+  return(avseepage)
+}
+avseepage <- Vectorize(.avseepage, vectorize.args="cnew", USE.NAMES=FALSE)
+
+######################################################################
+
+# Bereken dikte van de neerslaglens 
+#' @param x Afstand tot het midden van het perceel
+#' @param L Slootafstand
+#' @param kx horizontale doorlatendheid (m/d)
+#' @param kz verticale doorlatendheid (m/d)
+#' @param N Neerslagoverschot (m/d)
+#' @param K Jaargemiddelde kwelintensiteit (m/d)
+.lensdikte <- function(x, L, kx, kz, N, K){
+  if ( x <= 0 | x >= L/2 ) {
+    return(NA)
+  }
+  alpha <- N/(K+N)
+  ksi <- x * pi / L
+  dikte <- .5*(L/pi)*sqrt(kz/kx)*log(sin((1+alpha)*ksi)/sin((1-alpha)*ksi))
+  return(dikte)
+}
+lensdikte <- Vectorize(.lensdikte, vectorize.args="x", USE.NAMES=FALSE)
+
+### gemiddelde lensdikte
+gem_lensdikte <- function( x, L, kx, kz, N, K) {
+  mean(lensdikte(x, L, kx, kz, N, K))
+}
+
+.hlp_gem_lensdikte <- function( x, L, c_deklaag, N, K, Ddeklaag=12, ani_factor=10 ) {
+  kz <- Ddeklaag / c_deklaag
+  kx <- ani_factor * kz
+  gem_lensdikte( x, L, kx, kz, N, K)
+}
+
+hlp_gem_lensdikte <- Vectorize(.hlp_gem_lensdikte, vectorize.args=c("c_deklaag","K"), USE.NAMES=FALSE)
+
+### max lensdikte
+max_lensdikte <- function( x, L, kx, kz, N, K) {
+  max(lensdikte(x, L, kx, kz, N, K))
+}
+
+.hlp_max_lensdikte <- function( x, L, c_deklaag, N, K, Ddeklaag=12, ani_factor=10 ) {
+  kz <- Ddeklaag / c_deklaag
+  kx <- ani_factor * kz
+  max_lensdikte( x, L, kx, kz, N, K)
+}
+hlp_max_lensdikte <- Vectorize(.hlp_max_lensdikte, vectorize.args=c("c_deklaag","K"), USE.NAMES=FALSE)
+
+### min lensdikte
+min_lensdikte <- function( x, L, kx, kz, N, K) {
+  min(lensdikte(x, L, kx, kz, N, K))
+}
+
+.hlp_min_lensdikte <- function( x, L, c_deklaag, N, K, Ddeklaag=12, ani_factor=10 ) {
+  kz <- Ddeklaag / c_deklaag
+  kx <- ani_factor * kz
+  min_lensdikte( x, L, kx, kz, N, K)
+}
+hlp_min_lensdikte <- Vectorize(.hlp_min_lensdikte, vectorize.args=c("c_deklaag","K"), USE.NAMES=FALSE)
+
+###
+
+# Schat fractie van het perceelsoppervlak waar de neerslaglens in de zomer verdwijnt
+.P_lensdikte <- function(ymax, ycrit) {
+  if (ymax > ycrit) {
+      return(1-sqrt((1-ycrit/ymax)))
+    } else {
+      return(1)
+    }
+}
+P_lensdikte <- Vectorize(.P_lensdikte, vectorize.args="ymax")
+
+
+######################################################################
+
 # Example 1
 nLay <- 3
 h <-
@@ -299,7 +405,7 @@ c_ <- matrix(rep(c(50, 400, 85 / 0.075), nSec), nrow = nLay)
 Q <- matrix(rep(0, nLay * (nSec - 1)), nrow = nLay)
 x <- c(-1000, 1000, 3250, 4500, 5500, 6500, 7250, 8750, 9750, 10500)
 X <- seq(-2500, 11000, 10)
-m <- solve_mlay1d(kD, c_, Q, h, x, X)
+m <- solve_mlay1d(kD, c_, Q, h, x, X, f=10)
 m %>% plot_mlay1d(layers = c(1:nLay))
 m %>% plot_mlay1d(layers = c(1:nLay), ptype = "q")
 m %>% plot_mlay1d(layers = c(1:nLay), ptype = "s")
@@ -349,6 +455,17 @@ m %>% plot_mlay1d(
                   layers = c(1:nLay),
                   ptype = "s",
                   labls = labls)
+fname <- "Dwarsraai a/voor/met zandbaan/met verhoogde weerstand tussen zandbaan en randsloot/Raai a voor met zandbaan"
+fname <- "Dwarsraai a/voor/met zandbaan/Raai a voor met zandbaan"
+fname <- "Dwarsraai a/na/met zandbaan/met verhoogde weerstand tussen zandbaan en randsloot/Raai a na met zandbaan"
+fname <- "Dwarsraai a/na/met zandbaan/Raai a na met zandbaan"
+
+fname <- "Dwarsraai b/voor/met zandbaan/met verhoogde weerstand tussen zandbaan en randsloot/Raai b voor met zandbaan"
+fname <- "Dwarsraai b/voor/met zandbaan/Raai b voor met zandbaan"
+fname <- "Dwarsraai b/na/met zandbaan/met verhoogde weerstand tussen zandbaan en randsloot/Raai b na met zandbaan"
+fname <- "Dwarsraai b/na/met zandbaan/Raai b na met zandbaan"
+
+m %>% saveRDS(fname)
 
 # Example 4: Create sub-sections (50) per intersection interval to increase numerical stability.
 nLay <- 4
@@ -376,6 +493,72 @@ m <- solve_mlay1d(kD, c_, Q, h, x, X) # No results produced.
 m %>% plot_mlay1d(layers = c(1:nLay))
 m %>% plot_mlay1d(layers = c(1:nLay), ptype = "q")
 m %>% plot_mlay1d(layers = c(1:nLay), ptype = "s")
+
+#####################################################################################
+
+# Example 5: read directly from spreadsheet 
+#selct <- c("A","voor")
+#selct <- c("A","na")
+#selct <- c("B","voor")
+selct <- c("B","na")
+
+# Dwarsraai A
+if (selct[1] == "A") {
+  xrange <-
+    c(334, 625) # Afstanden in de raai waarop berekeningsresultaten worden gemiddeld etc.
+  if (selct[2] == "voor") {
+    fname1 <- "Dwarsraai A/voor/Voor - Dwarsraai A.xlsx"
+    fname2 <- "Dwarsraai A/voor/met zandbaan/dikte_neerslaglens_voor.csv"
+  } else {
+    fname1 <- "Dwarsraai A/na/Na - Dwarsraai A.xlsx"
+    fname2 <- "Dwarsraai A/na/met zandbaan/dikte_neerslaglens_na.csv"
+  }
+} else {
+  # Dwarsraai B
+  xrange <-
+    c(370, 750) # Afstanden in de raai waarop berekeningsresultaten worden gemiddeld etc.
+  if (selct[2] == "voor") {
+    fname1 <- "Dwarsraai B/voor/Voor - Dwarsraai B.xlsx"
+    fname2 <- "Dwarsraai B/voor/met zandbaan/dikte_neerslaglens_voor.csv"
+  } else {
+    fname1 <- "Dwarsraai B/na/Na - Dwarsraai B.xlsx"
+    fname2 <- "Dwarsraai B/na/met zandbaan/dikte_neerslaglens_na.csv"
+  }
+}
+
+df <- openxlsx::read.xlsx(fname1,rows=c(1:9),colNames=FALSE) %>% dplyr::select(-1)
+df <- df[,2:ncol(df)]
+inp <- df %>% xls2mlay2D()
+#m <- solve_mlay1d(inp$kD, inp$c_, inp$Q, inp$h, inp$x, X = inp$x)
+#m %>% plot_mlay1d(
+#  layers = c(1:inp$nLay),
+#  labls = inp$labls)
+#m %>% plot_mlay1d(
+#  layers = c(1:inp$nLay),
+#  ptype = "q",
+#  labls = inp$labls)
+#m %>% plot_mlay1d(
+#  layers = c(1:inp$nLay),
+#  ptype = "s",
+#  labls = inp$labls)
+
+# Gevoeligheidsanalyse voor deklaagweerstand van kwel en dikte neerslaglens in randzone.
+# i <- which(trimws(res$area)=="Hoofdwatergang")
+
+cnew <- seq(1000,4000,100)
+seepage <- avseepage( cnew, inp, xrange )
+df <- data.frame("c_deklaag"=cnew, "kwelmm"=seepage)
+
+# Gevoeligheidsanalyse voor deklaagweerstand en dikte neerslaglens in randzone.
+L <- 7.5 # Slootafstand
+x <- seq(.1,L/2-.1,length.out=25) # Afstand tot het midden van het perceel
+N <- 0.3 # Gemiddelde jaarlijkse grondwateraanvulling gras (tabel 1.7 grondwaterzakboekje)
+ycrit <- 1.25 # 0.1 m neerslagtekort gedeeld door freatische bergingscoefficient lichte klei 0.08 (-)
+df$min_lensdikte <- hlp_min_lensdikte( x, L, c_deklaag=df$c_deklaag, N, K=df$kwelmm/1000 )
+df$gem_lensdikte <- hlp_gem_lensdikte( x, L, c_deklaag=df$c_deklaag, N, K=df$kwelmm/1000) 
+df$max_lensdikte <- hlp_max_lensdikte( x, L, c_deklaag=df$c_deklaag, N, K=df$kwelmm/1000 )
+df$P <- P_lensdikte(ymax=df$max_lensdikte, ycrit)
+df %>% write.table(fname2, sep="\t", row.names=FALSE)
 
 
 
