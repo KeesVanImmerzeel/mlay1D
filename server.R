@@ -11,9 +11,9 @@ library(tidyr)
 min_nr_sections <- 2; max_nr_sections <- 25
 min_nr_aquifers <- 1; max_nr_aquifers <- 5
 min_kD <- 1;         max_kD <- 10000
-min_Q <- -10^6;       max_Q <- 10^6
-min_c <- 1;          max_c <- 10000
-min_h <- -1000;       max_h <- 1000
+min_Q <- -10^9;       max_Q <- 10^9
+min_c <- 1;          max_c <- 10^9
+min_h <- -10^9;       max_h <- 10^9
 
 
 # Create a new matrix based on the values in matrices x and y.
@@ -365,14 +365,13 @@ function(input, output, session) {
     updateMatrixInput(session, "x", x)
   })
   
-  observeEvent(c(input$grid_min, input$grid_max), {
-    if (input$grid_min > input$grid_max) {
-      hlp <- input$grid_max
-      updateNumericInput(session, "grid_max", value = input$grid_min)
-      updateNumericInput(session, "grid_min", value = hlp)
-    }
-   
-  })
+  #observeEvent(c(input$grid_min, input$grid_max), {
+  #  if (input$grid_min > input$grid_max) {
+  #    hlp <- input$grid_max
+  #    updateNumericInput(session, "grid_max", value = input$grid_min)
+  #    updateNumericInput(session, "grid_min", value = hlp)
+  #  }
+  #})
 
   observeEvent(c(input$ncl, input$nrw), {
     updateNumericInput(session, "nrw", value = nrw())
