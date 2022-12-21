@@ -462,4 +462,26 @@ function(input, output, session) {
     plot_mlay1d(m, layers = 1:nlay, ptype = "s", labls = labls)
   })
   
+  output$phi_info <- renderPrint({
+        req(input$plot_click_phi)
+        x <- round(input$plot_click_phi$x, 2)
+        y <- round(input$plot_click_phi$y, 2)
+        cat("[", x, ", ", y, "]", sep = "")
+  })  
+
+  output$q_info <- renderPrint({
+        req(input$plot_click_q)
+        x <- round(input$plot_click_q$x, 1)
+        y <- round(input$plot_click_q$y, 1)
+        cat("[", x, ", ", y, "]", sep = "")
+  })  
+
+  output$s_info <- renderPrint({
+        req(input$plot_click_s)
+        x <- round(input$plot_click_s$x, 4)
+        y <- round(input$plot_click_s$y, 4)
+        cat("[", x, ", ", y, "]", sep = "")
+  })  
+  
+  
 }

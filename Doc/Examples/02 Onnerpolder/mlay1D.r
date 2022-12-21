@@ -210,12 +210,14 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f=1) {
 #' @param layers number(s) of layers to plot (numeric)
 #' @param ptype Type of plot to create ("phi"=default, "q", "s")
 #' @param labls optional data-frame with x-coordinates of (optional) vertical lines in plot (numeric) and labels (character)
+#' @param ylabs optional number to control the y-position of labels (0-1)
 #' return ggplot2 object
 plot_mlay1d <-
       function(m,
                layers = 1,
                ptype = "phi",
-               labls = NULL) {
+               labls = NULL,
+               ylabs_pos=0.9) {
             m %<>% t() %>% as.data.frame()
             X <- m[,1]
             m <- m[,2:ncol(m)]
@@ -271,7 +273,7 @@ plot_mlay1d <-
                         myplot + annotate(
                               "text",
                               x = xv,
-                              y = layer_scales(myplot)$y$range$range[1],
+                              y = ylabs_pos*(layer_scales(myplot)$y$range$range[1]+layer_scales(myplot)$y$range$range[2]),
                               label = labls$txt,
                               angle = 90
                         )
@@ -446,15 +448,15 @@ labls <- data.frame(xvlines = x[i], txt = area[i])
 labls$xvlines[1] <- NA
 m %>% plot_mlay1d(
                   layers = c(1:nLay),
-                  labls = labls)
+                  labls = labls, ylabs=0.95)
 m %>% plot_mlay1d(
                   layers = c(1:nLay),
                   ptype = "q",
-                  labls = labls)
+                  labls = labls, ylabs=0.95)
 m %>% plot_mlay1d(
                   layers = c(1:nLay),
                   ptype = "s",
-                  labls = labls)
+                  labls = labls, ylabs=0.95)
 fname <- "Dwarsraai a/voor/met zandbaan/met verhoogde weerstand tussen zandbaan en randsloot/Raai a voor met zandbaan"
 fname <- "Dwarsraai a/voor/met zandbaan/Raai a voor met zandbaan"
 fname <- "Dwarsraai a/na/met zandbaan/met verhoogde weerstand tussen zandbaan en randsloot/Raai a na met zandbaan"

@@ -103,9 +103,12 @@ shiny::tagList(
             tabPanel(title="Plots",
                      sidebarPanel(
                          width="100%",
-                         plotOutput(outputId = "phi_plot"),
-                         plotOutput(outputId = "q_plot"),
-                         plotOutput(outputId = "s_plot")
+                         verbatimTextOutput("phi_info"),
+                         plotOutput(outputId = "phi_plot", click = "plot_click_phi"),
+                         verbatimTextOutput("q_info"),
+                         plotOutput(outputId = "q_plot", click = "plot_click_q"),
+                         verbatimTextOutput("s_info"),
+                         plotOutput(outputId = "s_plot", click = "plot_click_s")
                     )
             ),
             tabPanel(title = "Documentation", 

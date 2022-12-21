@@ -5,9 +5,9 @@ account: sweco
 server: shinyapps.io
 hostUrl: https://api.shinyapps.io/v1
 appId: 4432406
-bundleId: 6657999
+bundleId: 6661539
 url: https://sweco.shinyapps.io/mLay1D/
-when: 1671549112.95055
-lastSyncTime: 1671549112.95056
+when: 1671636006.73096
+lastSyncTime: 1671636006.73097
 asMultiple: FALSE
 asStatic: FALSE
