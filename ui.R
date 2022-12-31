@@ -40,7 +40,11 @@ shiny::tagList(
                          numericInput("f_", "Divide sections in f-parts [-]", f_, step=1, min = 1, max = 100),
                          numericInput("grid_min", "Presentation grid min [m]", grid_min),
                          numericInput("grid_max", "Presentation grid max [m]", grid_max),
-                         numericInput("nr_grid_points", "Nr. of presentation points (-)", nr_grid_points, min=1, max=10000)
+                         numericInput("nr_grid_points", "Nr. of presentation points (-)", nr_grid_points, min=1, max=10000),
+                         shinyFiles::shinySaveButton('download', 'Download', 'Save input data.', 
+                                                     multiple=FALSE, filename="mlay1D.rds", filetype=list(picture=c('rds')), icon = icon("download")),
+                         shinyFiles::shinyFilesButton('upload', 'Upload', 'Readinput data.', 
+                                                      multiple=FALSE, filename="mlay1D.rds", filetype=list(picture=c('rds')), icon = icon("upload"))
                          )),
             tabPanel(title = "Transmissivity [m2/day]",
                      sidebarPanel(

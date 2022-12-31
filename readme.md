@@ -3,7 +3,7 @@
 
 C.H. van Immerzeel
 
-2/9/2021
+31/12/2022
 
 ![Head plot](https://user-images.githubusercontent.com/16401251/131862426-cd709642-6294-474a-b7f2-b94bcc074b7f.png)
 ![Lateral flux plot](https://user-images.githubusercontent.com/16401251/131862604-399d08f8-b54b-4362-916c-2400ff77e806.png)
