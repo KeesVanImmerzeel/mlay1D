@@ -465,8 +465,7 @@ function(input, output, session) {
             return(res)
       })
       
-      output$matrix <- renderDataTable({
-            m <- m_()
+      create_table_of_results <- function(m) {
             m %<>% t() %>% as.data.frame()
             X <- m[, 1]
             m <- m[, 2:ncol(m)]
@@ -485,7 +484,32 @@ function(input, output, session) {
             m[, (2 * nlay + 1):(3 * nlay)] %<>% round(., 1)
             m$X <- X
             m %<>% dplyr::relocate(X, .before = phi1)
-            m
+            m            
+      }
+      
+      output$matrix <- renderDataTable({
+            #m <- m_()
+            create_table_of_results(m_())
+#            m <- m_()
+#            m %<>% t() %>% as.data.frame()
+#            X <- m[, 1]
+#            m <- m[, 2:ncol(m)]
+            
+#            nlay <- ncol(m) / 3
+#            names(m) <-
+#                  c(
+#                        paste0("phi", 1:nlay),
+#                        paste0("q", 1:nlay),
+#                        paste0("s", 1:nlay, "(x1000)")
+#                  )
+#            m[, 1:nlay] %<>% round(., 2)
+#            m[, (2 * nlay + 1):(3 * nlay)] <-
+#                  1000 * m[, (2 * nlay + 1):(3 * nlay)]
+#            m[, (nlay + 1):(2 * nlay)] %<>% round(., 4)
+#            m[, (2 * nlay + 1):(3 * nlay)] %<>% round(., 1)
+#            m$X <- X
+#            m %<>% dplyr::relocate(X, .before = phi1)
+            #m
       })
       
       output$phi_plot <- renderPlot({
@@ -599,26 +623,51 @@ function(input, output, session) {
                                                        savedInputs[["h"]])
                   shinyMatrix::updateMatrixInput(session, "Q", value =
                                                        savedInputs[["Q"]])
-                  shinyalert("All input is read.",
+                  shinyalert::shinyalert("All input is read.",
                              type = "info",
                              size = "xs")
             }
       })
       
       observeEvent(input$download, {
-            if (is.integer(input$download)) {
-                  #cat("No file-save path has been set (shinyFileSave)")
-            } else {
-                  fname <- parseSavePath(volumes, input$download) %>%
+            if (!is.integer(input$download)) {
+                  fname <- volumes %>% parseSavePath(input$download) %>%
                         dplyr::select("datapath") %>%
                         unlist() %>%
                         as.character()
-                  control_data <- reactiveValuesToList(input)
-                  saveRDS(control_data , fname)
-                  shinyalert("All input is saved.",
+                  reactiveValuesToList(input) %>% saveRDS(fname)
+                  shinyalert::shinyalert(paste("All input is saved to file\n",fname),
                              type = "info",
-                             size = "xs")
+                             size = "l")
             }
       })
+      
+      
+      ######################################################
+      # Export results
+      ######################################################
+      
+      shinyFiles::shinyFileSave(
+            input,
+            id = 'export',
+            roots = volumes,
+            filetypes = c('csv'),
+            defaultPath = '',
+            defaultRoot = 'home'
+      )
+      observeEvent(input$export, {
+            if (!is.integer(input$export)) {
+                  fname <- volumes %>% parseSavePath(input$export) %>%
+                        dplyr::select("datapath") %>%
+                        unlist() %>%
+                        as.character()
+                  output$test <- renderText({ fname })
+                  m_() %>% create_table_of_results() %>% write.csv2(file=fname, quote=FALSE, row.names=FALSE)
+                  shinyalert::shinyalert(paste("All results are saved to file\n",fname),
+                             type = "info",
+                             size = "l")
+            }
+      })
+      
       
 }

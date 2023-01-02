@@ -115,6 +115,14 @@ shiny::tagList(
                          plotOutput(outputId = "s_plot", click = "plot_click_s")
                     )
             ),
+            tabPanel(title="Export",
+                     sidebarPanel(
+                           width="3",
+                           shinyFiles::shinySaveButton('export', 'Export results', 'Save results to file.', 
+                                                       multiple=FALSE, filename="mlay1D.csv", filetype=list(picture=c('csv')), icon = icon("download"))),
+                           verbatimTextOutput('test')
+                     
+            ),            
             tabPanel(title = "Documentation", 
                      shiny::includeHTML("readme.html")
                      )
