@@ -19,6 +19,7 @@ shiny::tagList(
     fluidPage(
         titlePanel("mLay1D"),
         tabsetPanel(
+            id="all_tabs",
             tabPanel(title="Control",
                      sidebarPanel(
                          width=4,
@@ -122,7 +123,7 @@ shiny::tagList(
                            width="3",
                            shinyFiles::shinySaveButton('export', 'Export results', 'Save results to file.', 
                                                        multiple=FALSE, filename="mlay1D.csv", filetype=list(picture=c('csv')), icon = icon("download"))),
-                           verbatimTextOutput('test')
+                           #verbatimTextOutput('test')
                      
             ),            
             tabPanel(title = "Documentation", 

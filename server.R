@@ -486,9 +486,16 @@ function(input, output, session) {
             f <- input$f_ %>% as.vector()
             res <-
                   solve_mlay1d(t(input$kD), t(input$c_), t(input$Q), h, x, X, f = f)
+            
+
             return(res)
       })
       
+      observeEvent(input$go,{
+            updateTabsetPanel(session, "all_tabs",
+                              selected = "Plots")
+      })
+       
       create_table_of_results <- function(m) {
             m %<>% t() %>% as.data.frame()
             X <- m[, 1]
@@ -664,7 +671,7 @@ function(input, output, session) {
                         dplyr::select("datapath") %>%
                         unlist() %>%
                         as.character()
-                  output$test <- renderText({ fname })
+                  #output$test <- renderText({ fname })
                   m_() %>% create_table_of_results() %>% write.csv2(file=fname, quote=FALSE, row.names=FALSE)
                   shinyalert::shinyalert(paste("All results are saved to file\n",fname),
                              type = "info",
