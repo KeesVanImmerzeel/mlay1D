@@ -109,8 +109,10 @@ shiny::tagList(
                          width="100%",
                          verbatimTextOutput("phi_info"),
                          plotOutput(outputId = "phi_plot", click = "plot_click_phi"),
+                         br(), br(),
                          verbatimTextOutput("q_info"),
                          plotOutput(outputId = "q_plot", click = "plot_click_q"),
+                         br(), br(),
                          verbatimTextOutput("s_info"),
                          plotOutput(outputId = "s_plot", click = "plot_click_s")
                     )

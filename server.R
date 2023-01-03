@@ -286,6 +286,16 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f = 1) {
       return(rbind(X, phi, q, s))
 }
 
+
+get_plot_limits <- function(plot) {
+      gb = ggplot_build(plot)
+      xmin = gb$layout$panel_params[[1]]$x.range[1]
+      xmax = gb$layout$panel_params[[1]]$x.range[2]
+      ymin = gb$layout$panel_params[[1]]$y.range[1]
+      ymax = gb$layout$panel_params[[1]]$y.range[2]
+      list(xmin = xmin, xmax = xmax, ymin = ymin, ymax = ymax)
+}
+
 #' Plot results of function solve_mlay1d
 #' @inheritParams solve_mlay1d
 #' @param m Matrix with X and calculated heads, lateral fluxes and seepage
@@ -337,26 +347,40 @@ plot_mlay1d <-
                         y = ylab,
                         title = title
                   ) +
-                  theme(plot.title = element_text(hjust = 0.5))
+                  theme(plot.title = element_text(hjust = 0.5, size=rel(1.5),face="bold"),
+                        axis.text=element_text(size=rel(1.5)),
+                        axis.title=element_text(size=rel(1.5),face="bold"),
+                        legend.text = element_text(size=rel(1.5)),
+                        legend.title = element_text(size=rel(1.5)))
             if (!is.null(labls)) {
+                  
+                  plot_limits <- get_plot_limits(myplot)
+
                   xintercept <- labls$xvlines[!is.na(labls$xvlines)]
+                  xrnge <- c(plot_limits$xmin, plot_limits$xmax)  #layer_scales(myplot)$x$range$range
+                  xv <- c(xintercept, xrnge) %>% sort()
+                  xv <- xv[1:(length(xv) - 1)] + diff(xv) / 2
+                  df <- data.frame(xv=xv, labls=labls$txt)
+                  
+                  xintercept <- xintercept[between(xintercept,plot_limits$xmin, plot_limits$xmax)]
+                  df <- df[between(xv,plot_limits$xmin, plot_limits$xmax),]
+                  
                   myplot <-
                         myplot + geom_vline(
                               xintercept = xintercept,
                               linetype = "dotted",
                               color = "blue"
                         )
-                  xrnge <- layer_scales(myplot)$x$range$range
-                  xv <- c(xintercept, xrnge) %>% sort()
-                  xv <- xv[1:(length(xv) - 1)] + diff(xv) / 2
+                  
                   myplot <-
                         myplot + annotate(
                               "text",
-                              x = xv,
-                              y = layer_scales(myplot)$y$range$range[1],
-                              label = labls$txt#,
-                              #angle = 90
-                        )
+                              x = df$xv,
+                              y = plot_limits$ymin, #layer_scales(myplot)$y$range$range[1],
+                              label = df$labls, #labls$txt#,
+                              #angle = 90,
+                              size=rel(6)
+                       )
             }
             return(myplot)
       }
@@ -488,28 +512,7 @@ function(input, output, session) {
       }
       
       output$matrix <- renderDataTable({
-            #m <- m_()
             create_table_of_results(m_())
-#            m <- m_()
-#            m %<>% t() %>% as.data.frame()
-#            X <- m[, 1]
-#            m <- m[, 2:ncol(m)]
-            
-#            nlay <- ncol(m) / 3
-#            names(m) <-
-#                  c(
-#                        paste0("phi", 1:nlay),
-#                        paste0("q", 1:nlay),
-#                        paste0("s", 1:nlay, "(x1000)")
-#                  )
-#            m[, 1:nlay] %<>% round(., 2)
-#            m[, (2 * nlay + 1):(3 * nlay)] <-
-#                  1000 * m[, (2 * nlay + 1):(3 * nlay)]
-#            m[, (nlay + 1):(2 * nlay)] %<>% round(., 4)
-#            m[, (2 * nlay + 1):(3 * nlay)] %<>% round(., 1)
-#            m$X <- X
-#            m %<>% dplyr::relocate(X, .before = phi1)
-            #m
       })
       
       output$phi_plot <- renderPlot({
