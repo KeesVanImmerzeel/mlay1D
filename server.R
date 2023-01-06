@@ -23,6 +23,7 @@ min_c <- 1
 max_c <- 10 ^ 9
 min_h <- -10 ^ 9
 max_h <- 10 ^ 9
+aspect_ratio <- 1.618
 
 volumes <-
       c(
@@ -340,7 +341,7 @@ plot_mlay1d <-
                         y = value,
                         colour = Aquifer
                   )) +
-                  geom_line(size = 1) +
+                  geom_line(linewidth = 1) +
                   labs(
                         colour = "Aquifer",
                         x = "X (m)",
@@ -522,16 +523,27 @@ function(input, output, session) {
             create_table_of_results(m_())
       })
       
-      output$phi_plot <- renderPlot({
+      .phi_plot <- function() {
             m <- m_()
             nlay <- (nrow(m) - 1) / 3
             labls <- labls() %>% as.data.frame()
-            plot_mlay1d(
-                  m,
-                  layers = 1:nlay,
-                  ptype = "phi",
-                  labls = labls
-            )
+            plot_mlay1d(m,
+                        layers = 1:nlay,
+                        ptype = "phi",
+                        labls = labls)
+      }
+      
+      output$phi_plot <- renderPlot({
+ #           m <- m_()
+ #           nlay <- (nrow(m) - 1) / 3
+ #           labls <- labls() %>% as.data.frame()
+ #           plot_mlay1d(
+ #                 m,
+ #                 layers = 1:nlay,
+ #                 ptype = "phi",
+ #                 labls = labls
+ #           )
+            .phi_plot()
       })
       
       output$q_plot <- renderPlot({
@@ -679,5 +691,31 @@ function(input, output, session) {
             }
       })
       
-      
+      ######################################################
+      # Download plots
+      ######################################################      
+      shinyFiles::shinyFileSave(
+            input,
+            id = 'dwnld_phi_plot',
+            roots = volumes,
+            filetypes = c('png'),
+            defaultPath = '',
+            defaultRoot = 'home'
+      )      
+      observeEvent(input$dwnld_phi_plot, {
+            if (!is.integer(input$dwnld_phi_plot)) {
+                  fname <- volumes %>% parseSavePath(input$dwnld_phi_plot) %>%
+                        dplyr::select("datapath") %>%
+                        unlist() %>%
+                        as.character()
+                  p <- .phi_plot()
+                  ggplot2::ggsave(fname, p, device = "png", width = 20, height = 20/aspect_ratio, units = "cm")
+                  shinyalert::shinyalert(
+                        paste("Head plot is to saved to file\n", fname),
+                        type = "info",
+                        size = "l"
+                  )
+            }
+            
+      })
 }

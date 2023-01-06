@@ -105,25 +105,39 @@ shiny::tagList(
                          width="100%",
                          dataTableOutput("matrix"))
                      ),
-            tabPanel(title="Plots",
-                     sidebarPanel(
-                         width="100%",
-                         verbatimTextOutput("phi_info"),
-                         plotOutput(outputId = "phi_plot", click = "plot_click_phi"),
-                         br(), br(),
-                         verbatimTextOutput("q_info"),
-                         plotOutput(outputId = "q_plot", click = "plot_click_q"),
-                         br(), br(),
-                         verbatimTextOutput("s_info"),
-                         plotOutput(outputId = "s_plot", click = "plot_click_s")
-                    )
-            ),
+            tabPanel(title = "Plots",
+                     sidebarLayout(
+                           sidebarPanel(
+                                 width = "4",
+                                 shinyFiles::shinySaveButton(
+                                       'dwnld_phi_plot',
+                                       'Download Head plot',
+                                       'Save Head plot.',
+                                       multiple =
+                                             FALSE,
+                                       filename = "Head.png",
+                                       filetype = list(picture = c('png')),
+                                       icon = icon("download")
+                                 )
+                           ),
+                           mainPanel(
+                                 verbatimTextOutput("phi_info"),
+                                 plotOutput(outputId = "phi_plot", click = "plot_click_phi"),
+                                 br(),
+                                 br(),
+                                 verbatimTextOutput("q_info"),
+                                 plotOutput(outputId = "q_plot", click = "plot_click_q"),
+                                 br(),
+                                 br(),
+                                 verbatimTextOutput("s_info"),
+                                 plotOutput(outputId = "s_plot", click = "plot_click_s")
+                           )
+                     )),
             tabPanel(title="Export",
                      sidebarPanel(
                            width="3",
                            shinyFiles::shinySaveButton('export', 'Export results', 'Save results to file.', 
-                                                       multiple=FALSE, filename="mlay1D.csv", filetype=list(picture=c('csv')), icon = icon("download"))),
-                           #verbatimTextOutput('test')
+                                                       multiple=FALSE, filename="mlay1D", filetype=list(picture=c('csv')), icon = icon("download")))
                      
             ),            
             tabPanel(title = "Documentation", 
