@@ -329,8 +329,8 @@ plot_mlay1d <-
                   ylab <- "Head (m+ref)"
                   title <- "Head"
             } else if (ptype == "q") {
-                  ylab <- "Lateral flux (m2/d)"
-                  title <- "Lateral flux"
+                  ylab <- "Lateral Flux (m2/d)"
+                  title <- "Lateral Flux"
             } else {
                   ylab <- "Seepage (m/d)"
                   title <- "Seepage"
@@ -534,19 +534,10 @@ function(input, output, session) {
       }
       
       output$phi_plot <- renderPlot({
- #           m <- m_()
- #           nlay <- (nrow(m) - 1) / 3
- #           labls <- labls() %>% as.data.frame()
- #           plot_mlay1d(
- #                 m,
- #                 layers = 1:nlay,
- #                 ptype = "phi",
- #                 labls = labls
- #           )
             .phi_plot()
       })
       
-      output$q_plot <- renderPlot({
+      .q_plot <- function() {
             m <- m_()
             nlay <- (nrow(m) - 1) / 3
             labls <- labls() %>% as.data.frame()
@@ -556,9 +547,13 @@ function(input, output, session) {
                   ptype = "q",
                   labls = labls
             )
+      }      
+      
+      output$q_plot <- renderPlot({
+            .q_plot()
       })
       
-      output$s_plot <- renderPlot({
+      .s_plot <- function() {
             m <- m_()
             nlay <- (nrow(m) - 1) / 3
             labls <- labls() %>% as.data.frame()
@@ -568,6 +563,10 @@ function(input, output, session) {
                   ptype = "s",
                   labls = labls
             )
+      }       
+      
+      output$s_plot <- renderPlot({
+            .s_plot()
       })
       
       output$phi_info <- renderPrint({
@@ -694,6 +693,7 @@ function(input, output, session) {
       ######################################################
       # Download plots
       ######################################################      
+      
       shinyFiles::shinyFileSave(
             input,
             id = 'dwnld_phi_plot',
@@ -718,4 +718,59 @@ function(input, output, session) {
             }
             
       })
+      
+      ###
+      
+      shinyFiles::shinyFileSave(
+            input,
+            id = 'dwnld_latflx_plot',
+            roots = volumes,
+            filetypes = c("png"),
+            defaultPath = '',
+            defaultRoot = 'home'
+      )      
+      observeEvent(input$dwnld_latflx_plot, {
+            if (!is.integer(input$dwnld_latflx_plot)) {
+                  fname <- volumes %>% parseSavePath(input$dwnld_latflx_plot) %>%
+                        dplyr::select("datapath") %>%
+                        unlist() %>%
+                        as.character()
+                  p <- .q_plot()
+                  ggplot2::ggsave(fname, p, device = "png", width = 20, height = 20/aspect_ratio, units = "cm")
+                  shinyalert::shinyalert(
+                        paste("Lateral flux plot is to saved to file\n", fname),
+                        type = "info",
+                        size = "l"
+                  )
+            }
+            
+      })          
+      
+      ###
+      
+      shinyFiles::shinyFileSave(
+            input,
+            id = 'dwnld_seepage_plot',
+            roots = volumes,
+            filetypes = c("png"),
+            defaultPath = '',
+            defaultRoot = 'home'
+      )      
+      observeEvent(input$dwnld_seepage_plot, {
+            if (!is.integer(input$dwnld_seepage_plot)) {
+                  fname <- volumes %>% parseSavePath(input$dwnld_seepage_plot) %>%
+                        dplyr::select("datapath") %>%
+                        unlist() %>%
+                        as.character()
+                  p <- .s_plot()
+                  ggplot2::ggsave(fname, p, device = "png", width = 20, height = 20/aspect_ratio, units = "cm")
+                  shinyalert::shinyalert(
+                        paste("Seepage plot is to saved to file\n", fname),
+                        type = "info",
+                        size = "l"
+                  )
+            }
+            
+      })     
+      
 }

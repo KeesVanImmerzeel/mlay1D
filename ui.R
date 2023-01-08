@@ -118,7 +118,31 @@ shiny::tagList(
                                        filename = "Head.png",
                                        filetype = list(picture = c('png')),
                                        icon = icon("download")
-                                 )
+                                 ),
+                                 br(),
+                                 br(),
+                                 shinyFiles::shinySaveButton(
+                                       'dwnld_latflx_plot',
+                                       'Download Lateral Flux plot',
+                                       'Save Lateral Flux plot.',
+                                       multiple =
+                                             FALSE,
+                                       filename = "Lateral Flux.png",
+                                       filetype = list(picture = c('png')),
+                                       icon = icon("download")
+                                 ),
+                                 br(),
+                                 br(),
+                                 shinyFiles::shinySaveButton(
+                                       'dwnld_seepage_plot',
+                                       'Download Seepage plot',
+                                       'Save Seepage plot.',
+                                       multiple =
+                                             FALSE,
+                                       filename = "Seepage.png",
+                                       filetype = list(picture = c('png')),
+                                       icon = icon("download")
+                                 )                                 
                            ),
                            mainPanel(
                                  verbatimTextOutput("phi_info"),
@@ -138,7 +162,6 @@ shiny::tagList(
                            width="3",
                            shinyFiles::shinySaveButton('export', 'Export results', 'Save results to file.', 
                                                        multiple=FALSE, filename="mlay1D", filetype=list(picture=c('csv')), icon = icon("download")))
-                     
             ),            
             tabPanel(title = "Documentation", 
                      shiny::includeHTML("readme.html")
