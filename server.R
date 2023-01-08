@@ -694,22 +694,24 @@ function(input, output, session) {
       # Download plots
       ######################################################      
       
-      shinyFiles::shinyFileSave(
+      observeEvent (input$plt_fltype, { shinyFiles::shinyFileSave(
             input,
             id = 'dwnld_phi_plot',
             roots = volumes,
-            filetypes = c('png'),
+            filetypes = input$plt_fltype, 
             defaultPath = '',
             defaultRoot = 'home'
-      )      
+      )
+      })
+      
       observeEvent(input$dwnld_phi_plot, {
             if (!is.integer(input$dwnld_phi_plot)) {
                   fname <- volumes %>% parseSavePath(input$dwnld_phi_plot) %>%
                         dplyr::select("datapath") %>%
                         unlist() %>%
-                        as.character()
+                        as.character() %>% paste0(".",input$plt_fltype)
                   p <- .phi_plot()
-                  ggplot2::ggsave(fname, p, device = "png", width = 20, height = 20/aspect_ratio, units = "cm")
+                  ggplot2::ggsave(fname, p, width = 20, height = 20/aspect_ratio, units = "cm")
                   shinyalert::shinyalert(
                         paste("Head plot is to saved to file\n", fname),
                         type = "info",
@@ -721,22 +723,24 @@ function(input, output, session) {
       
       ###
       
-      shinyFiles::shinyFileSave(
+      observeEvent (input$plt_fltype, {      shinyFiles::shinyFileSave(
             input,
             id = 'dwnld_latflx_plot',
             roots = volumes,
-            filetypes = c("png"),
+            filetypes = input$plt_fltype,
             defaultPath = '',
             defaultRoot = 'home'
-      )      
+      ) 
+      })
+      
       observeEvent(input$dwnld_latflx_plot, {
             if (!is.integer(input$dwnld_latflx_plot)) {
                   fname <- volumes %>% parseSavePath(input$dwnld_latflx_plot) %>%
                         dplyr::select("datapath") %>%
                         unlist() %>%
-                        as.character()
+                        as.character() %>% paste0(".",input$plt_fltype)
                   p <- .q_plot()
-                  ggplot2::ggsave(fname, p, device = "png", width = 20, height = 20/aspect_ratio, units = "cm")
+                  ggplot2::ggsave(fname, p, width = 20, height = 20/aspect_ratio, units = "cm")
                   shinyalert::shinyalert(
                         paste("Lateral flux plot is to saved to file\n", fname),
                         type = "info",
@@ -748,22 +752,24 @@ function(input, output, session) {
       
       ###
       
-      shinyFiles::shinyFileSave(
+      observeEvent (input$plt_fltype, {      shinyFiles::shinyFileSave(
             input,
             id = 'dwnld_seepage_plot',
             roots = volumes,
-            filetypes = c("png"),
+            filetypes = input$plt_fltype,
             defaultPath = '',
             defaultRoot = 'home'
-      )      
+      )   
+      })
+      
       observeEvent(input$dwnld_seepage_plot, {
             if (!is.integer(input$dwnld_seepage_plot)) {
                   fname <- volumes %>% parseSavePath(input$dwnld_seepage_plot) %>%
                         dplyr::select("datapath") %>%
                         unlist() %>%
-                        as.character()
+                        as.character() %>% paste0(".",input$plt_fltype)
                   p <- .s_plot()
-                  ggplot2::ggsave(fname, p, device = "png", width = 20, height = 20/aspect_ratio, units = "cm")
+                  ggplot2::ggsave(fname, p, width = 20, height = 20/aspect_ratio, units = "cm")
                   shinyalert::shinyalert(
                         paste("Seepage plot is to saved to file\n", fname),
                         type = "info",

@@ -109,14 +109,16 @@ shiny::tagList(
                      sidebarLayout(
                            sidebarPanel(
                                  width = "4",
+                                 radioButtons("plt_fltype", "Filetype:",
+                                              c('png','jpg','jpeg',"eps", "ps", "tex", "pdf", "tiff", "bmp", "svg")),
                                  shinyFiles::shinySaveButton(
                                        'dwnld_phi_plot',
                                        'Download Head plot',
                                        'Save Head plot.',
                                        multiple =
                                              FALSE,
-                                       filename = "Head.png",
-                                       filetype = list(picture = c('png')),
+                                       filename = "Head",
+                                       filetype = list(picture=""),
                                        icon = icon("download")
                                  ),
                                  br(),
@@ -127,8 +129,8 @@ shiny::tagList(
                                        'Save Lateral Flux plot.',
                                        multiple =
                                              FALSE,
-                                       filename = "Lateral Flux.png",
-                                       filetype = list(picture = c('png')),
+                                       filename = "Lateral Flux",
+                                       filetype = list(picture=""),
                                        icon = icon("download")
                                  ),
                                  br(),
@@ -139,8 +141,8 @@ shiny::tagList(
                                        'Save Seepage plot.',
                                        multiple =
                                              FALSE,
-                                       filename = "Seepage.png",
-                                       filetype = list(picture = c('png')),
+                                       filename = "Seepage",
+                                       filetype = list(picture=""),
                                        icon = icon("download")
                                  )                                 
                            ),
