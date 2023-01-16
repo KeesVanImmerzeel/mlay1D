@@ -297,23 +297,17 @@ overflow-y: auto;
 border: 1px solid #ddd;
 border-radius: 4px;
 }
-.tabset-dropdown > .nav-tabs > li.active:before {
-content: "";
+.tabset-dropdown > .nav-tabs > li.active:before, .tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+content: "\e259";
 font-family: 'Glyphicons Halflings';
 display: inline-block;
 padding: 10px;
 border-right: 1px solid #ddd;
 }
 .tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
-content: "";
-border: none;
-}
-.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
-content: "";
+content: "\e258";
 font-family: 'Glyphicons Halflings';
-display: inline-block;
-padding: 10px;
-border-right: 1px solid #ddd;
+border: none;
 }
 .tabset-dropdown > .nav-tabs > li.active {
 display: block;
@@ -376,6 +370,15 @@ groundwater model</h1>
 input.</p>
 <p>Also Matlab/Octave and Python routines of the numerical solution is
 made available.</p>
+</div>
+<div id="example-measurements-.csv-file" class="section level2">
+<h2>Example measurements (*.csv) file</h2>
+<div class="figure">
+<img src="data:image/png;base64,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" alt />
+<p class="caption">image</p>
+</div>
+<p>Remark: make sure you use the EXACT column headers in the first row
+of the csv-file, like: <code>location;aquifer;x;Head</code></p>
 </div>
 <div id="numerical-stability" class="section level2">
 <h2>Numerical stability</h2>

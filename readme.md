@@ -21,6 +21,12 @@ An example is included if spreadsheet data is to be used as input.
 
 Also Matlab/Octave and Python routines of the numerical solution is made available.
 
+## Example measurements (*.csv) file
+
+![image](https://user-images.githubusercontent.com/16401251/212712286-ec97f3a0-52af-43a3-ba15-ea9ed0214547.png)
+
+Remark: make sure you use the EXACT column headers in the first row of the csv-file, like: `location;aquifer;x;Head`
+
 ## Numerical stability
 Exotic values for kD and c, as well as large distances between intersection points may lead to numerical instability. In that case, no results or plots are presented. Instead, an error message appears.
 
