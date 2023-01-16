@@ -102,7 +102,7 @@ shiny::tagList(
                          ))),
             
             tabPanel(title = "Measurements",
-                     # Sidebar layout with input and output definitions ----
+                     # Sidebar layout with options to upload measurements
                      sidebarLayout(
                            # Sidebar panel for inputs ----
                            sidebarPanel(
@@ -147,10 +147,15 @@ shiny::tagList(
                      )),                           
                         
             tabPanel(title="Results",
+                     sidebarLayout(
                      sidebarPanel(
-                         width="100%",
-                         dataTableOutput("matrix"))
-                     ),
+                         width="3",
+                         shinyFiles::shinySaveButton('export', 'Export results', 'Save results to file.', 
+                                                     multiple=FALSE, filename="mlay1D", filetype=list(picture=c('csv')), icon = icon("download"))
+                         ),
+                     mainPanel(# Output: Data file ----
+                               dataTableOutput("matrix"))
+                     )),
             tabPanel(title = "Plots",
                      sidebarLayout(
                            sidebarPanel(
@@ -207,12 +212,6 @@ shiny::tagList(
                                  plotOutput(outputId = "s_plot", click = "plot_click_s")
                            )
                      )),
-            tabPanel(title="Export",
-                     sidebarPanel(
-                           width="3",
-                           shinyFiles::shinySaveButton('export', 'Export results', 'Save results to file.', 
-                                                       multiple=FALSE, filename="mlay1D", filetype=list(picture=c('csv')), icon = icon("download")))
-            ),            
             tabPanel(title = "Documentation", 
                      shiny::includeHTML("readme.html")
                      )
