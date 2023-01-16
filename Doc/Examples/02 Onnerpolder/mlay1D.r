@@ -19,7 +19,7 @@ new.packages <-
 if (length(new.packages))
       install.packages(new.packages, dependencies = TRUE)
 lapply(packages.loading, require, character.only = TRUE)
-installr::updateR() #If packages can't be installed update Rstudio
+#installr::updateR() #If packages can't be installed update Rstudio
 
 ### Set work directory_###
 setwd(dirname(rstudioapi::getActiveDocumentContext()$path))

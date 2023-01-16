@@ -100,6 +100,52 @@ shiny::tagList(
                                  names = TRUE
                              )
                          ))),
+            
+            tabPanel(title = "Measurements",
+                     # Sidebar layout with input and output definitions ----
+                     sidebarLayout(
+                           # Sidebar panel for inputs ----
+                           sidebarPanel(
+                                 # Input: Select a file ----
+                                 fileInput(
+                                       "fname_measurements",
+                                       "Choose CSV File with measurements",
+                                       multiple = TRUE,
+                                       accept = c("text/csv",
+                                                  "text/comma-separated-values,text/plain",
+                                                  ".csv")
+                                 ),
+                                 # Horizontal line ----
+                                 tags$hr(),
+                                 # Input: Select separator ----
+                                 radioButtons(
+                                       "sep",
+                                       "Separator",
+                                       choices = c(
+                                             Comma = ",",
+                                             Semicolon = ";",
+                                             Tab = "\t"
+                                       ),
+                                       selected = ";"
+                                 ),
+                                 
+                                 # Input: Select quotes ----
+                                 radioButtons(
+                                       "quote",
+                                       "Quote",
+                                       choices = c(
+                                             None = "",
+                                             "Double Quote" = '"',
+                                             "Single Quote" = "'"
+                                       ),
+                                       selected = ''
+                                 )
+                           ),
+                           # Main panel for displaying outputs ----
+                           mainPanel(# Output: Data file ----
+                                     tableOutput("contents"))
+                     )),                           
+                        
             tabPanel(title="Results",
                      sidebarPanel(
                          width="100%",
@@ -109,6 +155,8 @@ shiny::tagList(
                      sidebarLayout(
                            sidebarPanel(
                                  width = "4",
+                                 checkboxInput("Labels", "Label measurements", value = TRUE),
+                                 br(),
                                  radioButtons("plt_fltype", "Filetype:",
                                               c('png','jpg','jpeg',"eps", "ps", "tex", "pdf", "tiff", "bmp", "svg")),
                                  shinyFiles::shinySaveButton(

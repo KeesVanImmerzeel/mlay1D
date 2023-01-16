@@ -325,6 +325,8 @@ plot_mlay1d <-
             m$X <- X
             m %<>% reshape2::melt(id.vars = "X", variable.name = "Aquifer") %>% tidyr::drop_na()
             
+            m$location <- ""
+            
             if (ptype == "phi") {
                   ylab <- "Head (m+ref)"
                   title <- "Head"
@@ -339,7 +341,8 @@ plot_mlay1d <-
                   ggplot(data = m, aes(
                         x = X,
                         y = value,
-                        colour = Aquifer
+                        colour = Aquifer,
+                        label=location
                   )) +
                   geom_line(linewidth = 1) +
                   labs(
@@ -401,6 +404,40 @@ function(input, output, session) {
             return(data.frame(xvlines = c(NA, x), txt = LETTERS[1:(length(x) +
                                                                          1)]))
       })
+      
+      ######################################################
+      # Observations
+      ######################################################
+      
+      rv <- reactiveValues(observations = NULL) # Initialisation
+      
+      observations_are_available <- reactive({
+            !is.null(rv$observations)
+      })
+      nr_of_observations <- reactive({
+            if (observations_are_available()) {
+                  nrow(rv$observations)
+            } else {
+                  0
+            }
+      })
+      observeEvent(input$fname_measurements, { # Upload measurements
+            req(input$fname_measurements)
+            df <- read.csv2(
+                  input$fname_measurements$datapath,
+                  header = TRUE,
+                  sep = input$sep,
+                  quote = input$quote
+            )
+            df <- data.frame(X=df$x, value=df$Head, Aquifer=df$aquifer, location=df$location)
+            df$Aquifer <- as.factor(df$Aquifer)
+            rv$observations <- df
+      })    
+      output$contents <- renderTable({
+            rv$observations
+      })
+      
+      ######################################################
       
       observeEvent(input$Q, {
             Q <- limit_matrix(input$Q, min_Q, max_Q)
@@ -534,7 +571,26 @@ function(input, output, session) {
       }
       
       output$phi_plot <- renderPlot({
-            .phi_plot()
+            plt <- .phi_plot()
+            if (observations_are_available()) {
+                  #.data <- rv$observations
+                  plt <-
+                        plt + geom_point(data = rv$observations,
+                                         size = 3,
+                                         show.legend = FALSE)
+                  if (input$Labels) {
+                        plt <- plt + ggrepel::geom_label_repel(
+                              data = rv$observations,
+                              box.padding = 0.35,
+                              point.padding =
+                                    0.5,
+                              segment.color =
+                                    'grey50',
+                              show.legend = FALSE
+                        )
+                  }
+            }
+            plt
       })
       
       .q_plot <- function() {
@@ -662,7 +718,6 @@ function(input, output, session) {
                              size = "l")
             }
       })
-      
       
       ######################################################
       # Export results
