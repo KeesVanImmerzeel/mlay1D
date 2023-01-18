@@ -6,9 +6,9 @@ library(reshape2)
 library(dplyr)
 library(magrittr)
 library(tidyr)
-library(shinyalert)
-library(fs)
-library(shinyFiles)
+#library(shinyalert)
+#library(fs)
+#library(shinyFiles)
 
 # Constants
 min_nr_sections <- 2
@@ -168,7 +168,6 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f = 1) {
             }
       ) #withProgress
       
-      
       withProgress(
             message = "Creating matrices C & R",
             min = 1,
@@ -232,14 +231,12 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f = 1) {
             }
       ) # withProgress
       
-      
       withProgress(message = "Solving linear system of equations.", {
             # Mimic mldivide
             COEF <- solve(C[, (nLay + 1):(ncol(C) - nLay)], R) %>%
                   c(rep(0, nLay), ., rep(0, nLay))
             
       }) # withProgress
-      
       
       withProgress(
             message = "Creating matrix with heads, lateral fluxes and seepage.",
@@ -283,10 +280,8 @@ solve_mlay1d <- function(kD, c_, Q, h, x, X, f = 1) {
                   
             }
       ) # withProgress
-      
       return(rbind(X, phi, q, s))
 }
-
 
 get_plot_limits <- function(plot) {
       gb = ggplot_build(plot)
@@ -361,7 +356,7 @@ plot_mlay1d <-
                   plot_limits <- get_plot_limits(myplot)
 
                   xintercept <- labls$xvlines[!is.na(labls$xvlines)]
-                  xrnge <- c(plot_limits$xmin, plot_limits$xmax)  #layer_scales(myplot)$x$range$range
+                  xrnge <- c(plot_limits$xmin, plot_limits$xmax)  
                   xv <- c(xintercept, xrnge) %>% sort()
                   xv <- xv[1:(length(xv) - 1)] + diff(xv) / 2
                   df <- data.frame(xv=xv, labls=labls$txt)
@@ -429,8 +424,6 @@ function(input, output, session) {
                   sep = input$sep,
                   quote = input$quote
             )
-            df <- data.frame(X=df$x, value=df$Head, Aquifer=df$aquifer, location=df$location)
-            df$Aquifer <- as.factor(df$Aquifer)
             rv$observations <- df
       })    
       output$contents <- renderTable({
@@ -524,8 +517,6 @@ function(input, output, session) {
             f <- input$f_ %>% as.vector()
             res <-
                   solve_mlay1d(t(input$kD), t(input$c_), t(input$Q), h, x, X, f = f)
-            
-
             return(res)
       })
       
@@ -560,27 +551,25 @@ function(input, output, session) {
             create_table_of_results(m_())
       })
       
-      .phi_plot <- function() {
+      .phi_plot <- function(with_observations=FALSE, with_labels=FALSE) {
             m <- m_()
             nlay <- (nrow(m) - 1) / 3
             labls <- labls() %>% as.data.frame()
-            plot_mlay1d(m,
+            plt <- plot_mlay1d(m,
                         layers = 1:nlay,
                         ptype = "phi",
                         labls = labls)
-      }
-      
-      output$phi_plot <- renderPlot({
-            plt <- .phi_plot()
-            if (observations_are_available()) {
-                  #.data <- rv$observations
+            if (with_observations) {
+                  df <- rv$observations
+                  df <- data.frame(X=df$x, value=df$Head, Aquifer=df$aquifer, location=df$location)
+                  df$Aquifer <- as.factor(df$Aquifer)
                   plt <-
-                        plt + geom_point(data = rv$observations,
+                        plt + geom_point(data = df,
                                          size = 3,
                                          show.legend = FALSE)
-                  if (input$Labels) {
+                  if (with_labels) {
                         plt <- plt + ggrepel::geom_label_repel(
-                              data = rv$observations,
+                              data = df,
                               box.padding = 0.35,
                               point.padding =
                                     0.5,
@@ -591,6 +580,10 @@ function(input, output, session) {
                   }
             }
             plt
+      }
+      
+      output$phi_plot <- renderPlot({
+            .phi_plot(observations_are_available(), input$Labels)
       })
       
       .q_plot <- function() {
@@ -650,188 +643,106 @@ function(input, output, session) {
       # Upload and download input
       ######################################################
       
-      shinyFiles::shinyFileChoose(
-            input,
-            id = 'upload',
-            roots = volumes,
-            filetypes = c('rds'),
-            defaultPath = '',
-            defaultRoot = 'home'
-      )
-      
-      shinyFiles::shinyFileSave(
-            input,
-            id = 'download',
-            roots = volumes,
-            filetypes = c('rds'),
-            defaultPath = '',
-            defaultRoot = 'home'
-      )
-      
       observeEvent(input$upload, {
-            shinyFiles::shinyFileSave(
-                  input,
-                  id = 'download',
-                  roots = volumes,
-                  filetypes = c('rds'),
-                  defaultPath = '',
-                  defaultRoot = 'home'
-            )
-            df <-
-                  shinyFiles::parseFilePaths(roots = volumes, input$upload)
-            fname <- df$datapath
-            
-            if (length(fname) > 0) {
-                  savedInputs <- readRDS(fname)
-                  updateNumericInput(session, "ncl", value = savedInputs[["ncl"]])
-                  updateNumericInput(session, "nrw", value = savedInputs[["nrw"]])
-                  shinyMatrix::updateMatrixInput(session, "x", value =
-                                                       savedInputs[["x"]])
-                  updateNumericInput(session, "f_", value = savedInputs[["f_"]])
-                  updateNumericInput(session, "grid_min", value = savedInputs[["grid_min"]])
-                  updateNumericInput(session, "grid_max", value = savedInputs[["grid_max"]])
-                  updateNumericInput(session, "nr_grid_points", value =
-                                           savedInputs[["nr_grid_points"]])
-                  shinyMatrix::updateMatrixInput(session, "kD", value =
-                                                       savedInputs[["kD"]])
-                  shinyMatrix::updateMatrixInput(session, "c_", value =
-                                                       savedInputs[["c_"]])
-                  shinyMatrix::updateMatrixInput(session, "h", value =
-                                                       savedInputs[["h"]])
-                  shinyMatrix::updateMatrixInput(session, "Q", value =
-                                                       savedInputs[["Q"]])
-                  shinyalert::shinyalert("All input is read.",
-                             type = "info",
-                             size = "xs")
-            }
+            req(input$upload)
+            savedInputs <- readRDS(input$upload$datapath)
+            updateNumericInput(session, "ncl", value = savedInputs[["ncl"]])
+            updateNumericInput(session, "nrw", value = savedInputs[["nrw"]])
+            shinyMatrix::updateMatrixInput(session, "x", value =
+                                                 savedInputs[["x"]])
+            updateNumericInput(session, "f_", value = savedInputs[["f_"]])
+            updateNumericInput(session, "grid_min", value = savedInputs[["grid_min"]])
+            updateNumericInput(session, "grid_max", value = savedInputs[["grid_max"]])
+            updateNumericInput(session, "nr_grid_points", value =
+                                     savedInputs[["nr_grid_points"]])
+            shinyMatrix::updateMatrixInput(session, "kD", value =
+                                                 savedInputs[["kD"]])
+            shinyMatrix::updateMatrixInput(session, "c_", value =
+                                                 savedInputs[["c_"]])
+            shinyMatrix::updateMatrixInput(session, "h", value =
+                                                 savedInputs[["h"]])
+            shinyMatrix::updateMatrixInput(session, "Q", value =
+                                                 savedInputs[["Q"]])
+            showNotification("All input is read.")
       })
       
-      observeEvent(input$download, {
-            if (!is.integer(input$download)) {
-                  fname <- volumes %>% parseSavePath(input$download) %>%
-                        dplyr::select("datapath") %>%
-                        unlist() %>%
-                        as.character()
-                  reactiveValuesToList(input) %>% saveRDS(fname)
-                  shinyalert::shinyalert(paste("All input is saved to file\n",fname),
-                             type = "info",
-                             size = "l")
+      output$download <- downloadHandler(
+            filename = function() {
+                  input$download_filename
+            },
+            content = function(file) {
+                  reactiveValuesToList(input) %>% saveRDS(file)
+                  #showNotification("All input is downloaded.")
             }
-      })
+      )
       
       ######################################################
       # Export results
       ######################################################
       
-      shinyFiles::shinyFileSave(
-            input,
-            id = 'export',
-            roots = volumes,
-            filetypes = c('csv'),
-            defaultPath = '',
-            defaultRoot = 'home'
-      )
-      observeEvent(input$export, {
-            if (!is.integer(input$export)) {
-                  fname <- volumes %>% parseSavePath(input$export) %>%
-                        dplyr::select("datapath") %>%
-                        unlist() %>%
-                        as.character()
-                  #output$test <- renderText({ fname })
-                  m_() %>% create_table_of_results() %>% write.csv2(file=fname, quote=FALSE, row.names=FALSE)
-                  shinyalert::shinyalert(paste("All results are saved to file\n",fname),
-                             type = "info",
-                             size = "l")
+      output$export <- downloadHandler(
+            filename = function() {
+                  input$export_filename
+            },
+            content = function(file) {
+                  m_() %>% create_table_of_results() %>% write.csv2(file, quote=FALSE, row.names=FALSE)
+                  #showNotification("All results are downloaded.")
             }
-      })
+      )
       
       ######################################################
       # Download plots
       ######################################################      
       
-      observeEvent (input$plt_fltype, { shinyFiles::shinyFileSave(
-            input,
-            id = 'dwnld_phi_plot',
-            roots = volumes,
-            filetypes = input$plt_fltype, 
-            defaultPath = '',
-            defaultRoot = 'home'
+      output$dwnld_phi_plot <- downloadHandler(
+            filename = function() {
+                  input$phi_plot_filename
+            },
+            content = function(file) {
+                  p <- .phi_plot(observations_are_available(), input$Labels)
+                  ggplot2::ggsave(
+                        file,
+                        p,
+                        width = 20,
+                        height = 20 / aspect_ratio,
+                        units = "cm"
+                  )
+                  #showNotification("Head plot is downloaded.")
+            }
       )
-      })
       
-      observeEvent(input$dwnld_phi_plot, {
-            if (!is.integer(input$dwnld_phi_plot)) {
-                  fname <- volumes %>% parseSavePath(input$dwnld_phi_plot) %>%
-                        dplyr::select("datapath") %>%
-                        unlist() %>%
-                        as.character() %>% paste0(".",input$plt_fltype)
-                  p <- .phi_plot()
-                  ggplot2::ggsave(fname, p, width = 20, height = 20/aspect_ratio, units = "cm")
-                  shinyalert::shinyalert(
-                        paste("Head plot is to saved to file\n", fname),
-                        type = "info",
-                        size = "l"
-                  )
-            }
-            
-      })
-      
-      ###
-      
-      observeEvent (input$plt_fltype, {      shinyFiles::shinyFileSave(
-            input,
-            id = 'dwnld_latflx_plot',
-            roots = volumes,
-            filetypes = input$plt_fltype,
-            defaultPath = '',
-            defaultRoot = 'home'
-      ) 
-      })
-      
-      observeEvent(input$dwnld_latflx_plot, {
-            if (!is.integer(input$dwnld_latflx_plot)) {
-                  fname <- volumes %>% parseSavePath(input$dwnld_latflx_plot) %>%
-                        dplyr::select("datapath") %>%
-                        unlist() %>%
-                        as.character() %>% paste0(".",input$plt_fltype)
+      output$dwnld_latflx_plot <- downloadHandler(
+            filename = function() {
+                  input$latflx_filename
+            },
+            content = function(file) {
                   p <- .q_plot()
-                  ggplot2::ggsave(fname, p, width = 20, height = 20/aspect_ratio, units = "cm")
-                  shinyalert::shinyalert(
-                        paste("Lateral flux plot is to saved to file\n", fname),
-                        type = "info",
-                        size = "l"
+                  ggplot2::ggsave(
+                        file,
+                        p,
+                        width = 20,
+                        height = 20 / aspect_ratio,
+                        units = "cm"
                   )
+                  #showNotification("Lateral Flux plot is downloaded.")
             }
-            
-      })          
+      )
       
-      ###
-      
-      observeEvent (input$plt_fltype, {      shinyFiles::shinyFileSave(
-            input,
-            id = 'dwnld_seepage_plot',
-            roots = volumes,
-            filetypes = input$plt_fltype,
-            defaultPath = '',
-            defaultRoot = 'home'
-      )   
-      })
-      
-      observeEvent(input$dwnld_seepage_plot, {
-            if (!is.integer(input$dwnld_seepage_plot)) {
-                  fname <- volumes %>% parseSavePath(input$dwnld_seepage_plot) %>%
-                        dplyr::select("datapath") %>%
-                        unlist() %>%
-                        as.character() %>% paste0(".",input$plt_fltype)
+      output$dwnld_seepage_plot <- downloadHandler(
+            filename = function() {
+                  input$seepage_filename
+            },
+            content = function(file) {
                   p <- .s_plot()
-                  ggplot2::ggsave(fname, p, width = 20, height = 20/aspect_ratio, units = "cm")
-                  shinyalert::shinyalert(
-                        paste("Seepage plot is to saved to file\n", fname),
-                        type = "info",
-                        size = "l"
+                  ggplot2::ggsave(
+                        file,
+                        p,
+                        width = 20,
+                        height = 20 / aspect_ratio,
+                        units = "cm"
                   )
+            #showNotification("Seepage plot is downloaded.")
             }
-            
-      })     
+      )
       
 }

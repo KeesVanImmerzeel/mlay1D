@@ -20,33 +20,46 @@ shiny::tagList(
         titlePanel("mLay1D"),
         tabsetPanel(
             id="all_tabs",
-            tabPanel(title="Control",
-                     sidebarPanel(
-                         width=4,
-                         actionButton("go", "Refresh results & plots", class = "btn-warning"),
-                         numericInput("ncl", "Nr. of aquifers", ncl, min = 1, max = 5),
-                         numericInput("nrw", "Nr. of sections", nrw, min = 2, max = 26),
-                         matrixInput(
-                             inputId = "x",
-                             label = "Intersection points [m]",
-                             value = x,
-                             class = "numeric",
-                             rows = list(
-                                 names = FALSE
-                            ), 
-                            cols=list(
-                                names= FALSE
-                            )
-                         ),
-                         numericInput("f_", "Divide sections in f-parts [-]", f_, step=1, min = 1, max = 100),
-                         numericInput("grid_min", "Presentation grid min [m]", grid_min),
-                         numericInput("grid_max", "Presentation grid max [m]", grid_max),
-                         numericInput("nr_grid_points", "Nr. of presentation points (-)", nr_grid_points, min=1, max=10000),
-                         shinyFiles::shinySaveButton('download', 'Download', 'Save input data.', 
-                                                     multiple=FALSE, filename="mlay1D.rds", filetype=list(picture=c('rds')), icon = icon("download")),
-                         shinyFiles::shinyFilesButton('upload', 'Upload', 'Readinput data.', 
-                                                      multiple=FALSE, filename="mlay1D.rds", filetype=list(picture=c('rds')), icon = icon("upload"))
-                         )),
+            tabPanel(
+                  title = "Control",
+                  sidebarPanel(
+                        width = 4,
+                        actionButton("go", "Refresh results & plots", class = "btn-warning"),
+                        numericInput("ncl", "Nr. of aquifers", ncl, min = 1, max = 5),
+                        numericInput("nrw", "Nr. of sections", nrw, min = 2, max = 26),
+                        matrixInput(
+                              inputId = "x",
+                              label = "Intersection points [m]",
+                              value = x,
+                              class = "numeric",
+                              rows = list(names = FALSE),
+                              cols = list(names = FALSE)
+                        ),
+                        numericInput(
+                              "f_",
+                              "Divide sections in f-parts [-]",
+                              f_,
+                              step = 1,
+                              min = 1,
+                              max = 100
+                        ),
+                        numericInput("grid_min", "Presentation grid min [m]", grid_min),
+                        numericInput("grid_max", "Presentation grid max [m]", grid_max),
+                        numericInput(
+                              "nr_grid_points",
+                              "Nr. of presentation points (-)",
+                              nr_grid_points,
+                              min = 1,
+                              max = 10000
+                        ),
+                        textInput("download_filename", "Name for the file with input data", value = "mlay1D.rds"),
+                        downloadButton("download", "Download input data."),
+                        br(),
+                        br(),
+                        fileInput("upload", "Upload input data", accept =
+                                        ".rds")
+                  )
+            ),
             tabPanel(title = "Transmissivity [m2/day]",
                      sidebarPanel(
                          width="100%",
@@ -110,7 +123,6 @@ shiny::tagList(
                                  fileInput(
                                        "fname_measurements",
                                        "Choose CSV File with measurements",
-                                       multiple = TRUE,
                                        accept = c("text/csv",
                                                   "text/comma-separated-values,text/plain",
                                                   ".csv")
@@ -150,8 +162,8 @@ shiny::tagList(
                      sidebarLayout(
                      sidebarPanel(
                          width="3",
-                         shinyFiles::shinySaveButton('export', 'Export results', 'Save results to file.', 
-                                                     multiple=FALSE, filename="mlay1D", filetype=list(picture=c('csv')), icon = icon("download"))
+                         textInput("export_filename", "Name for the file with results", value = "mlay1D.csv"),
+                         downloadButton("export", "Download results")
                          ),
                      mainPanel(# Output: Data file ----
                                dataTableOutput("matrix"))
@@ -161,43 +173,17 @@ shiny::tagList(
                            sidebarPanel(
                                  width = "4",
                                  checkboxInput("Labels", "Label measurements", value = TRUE),
-                                 br(),
-                                 radioButtons("plt_fltype", "Filetype:",
-                                              c('png','jpg','jpeg',"eps", "ps", "tex", "pdf", "tiff", "bmp", "svg")),
-                                 shinyFiles::shinySaveButton(
-                                       'dwnld_phi_plot',
-                                       'Download Head plot',
-                                       'Save Head plot.',
-                                       multiple =
-                                             FALSE,
-                                       filename = "Head",
-                                       filetype = list(picture=""),
-                                       icon = icon("download")
-                                 ),
+                                 br(), br(),
+                  textInput("phi_plot_filename", "Name for the Head plot file", value = "Head.png"),
+                  downloadButton("dwnld_phi_plot", "Download Head plot"),
                                  br(),
                                  br(),
-                                 shinyFiles::shinySaveButton(
-                                       'dwnld_latflx_plot',
-                                       'Download Lateral Flux plot',
-                                       'Save Lateral Flux plot.',
-                                       multiple =
-                                             FALSE,
-                                       filename = "Lateral Flux",
-                                       filetype = list(picture=""),
-                                       icon = icon("download")
-                                 ),
+                  textInput("latflx_filename", "Name for the Lateral Flux plot file", value = "Lateral Flux.png"),
+                  downloadButton("dwnld_latflx_plot", "Download Lateral Flux plot"),
                                  br(),
                                  br(),
-                                 shinyFiles::shinySaveButton(
-                                       'dwnld_seepage_plot',
-                                       'Download Seepage plot',
-                                       'Save Seepage plot.',
-                                       multiple =
-                                             FALSE,
-                                       filename = "Seepage",
-                                       filetype = list(picture=""),
-                                       icon = icon("download")
-                                 )                                 
+                  textInput("seepage_filename", "Name for the Seepage plot file", value = "Seepage.png"),
+                  downloadButton("dwnld_seepage_plot", "Download Seepage plot")
                            ),
                            mainPanel(
                                  verbatimTextOutput("phi_info"),
