@@ -15,7 +15,7 @@ min_nr_sections <- 2
 max_nr_sections <- 25
 min_nr_aquifers <- 1
 max_nr_aquifers <- 5
-min_kD <- 1
+min_kD <- 0.001
 max_kD <- 10000
 min_Q <- -10 ^ 9
 max_Q <- 10 ^ 9

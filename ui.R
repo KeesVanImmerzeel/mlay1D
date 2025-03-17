@@ -1,6 +1,9 @@
 library(shinyMatrix)
 library(magrittr)
 
+# options set to make datatables work correctly 
+options(shiny.legacy.datatable = TRUE)
+
 nrw <- 11
 ncl <- 3
 
